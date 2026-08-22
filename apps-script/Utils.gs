@@ -98,3 +98,74 @@ function runWithLock(callback) {
 function generateUUID() {
   return Utilities.getUuid();
 }
+
+/**
+ * RUN THIS ONCE FROM THE APPS SCRIPT EDITOR TO SET UP ALL SHEETS.
+ * Go to Apps Script → select "setupSheets" from the function dropdown → click Run.
+ * This will create all required tabs with correct headers automatically.
+ */
+function setupSheets() {
+  const ss = SpreadsheetApp.getActiveSpreadsheet();
+
+  const schemas = {
+    "Exams": [
+      "Exam ID", "Title", "Code", "Section", "Duration (Mins)",
+      "Start Time", "End Time", "Deduction", "Max Violations",
+      "Randomize", "Status", "Created At"
+    ],
+    "Students": [
+      "Student ID", "Name", "Section", "Exam ID"
+    ],
+    "Questions": [
+      "Question ID", "Exam ID", "Number", "Type", "Question Text",
+      "A", "B", "C", "D", "Answer", "Points"
+    ],
+    "Attempts": [
+      "Attempt ID", "Exam ID", "Student ID", "Start Time", "End Time",
+      "Score", "Deduction", "Final Score", "Status"
+    ],
+    "Answers": [
+      "Answer ID", "Attempt ID", "Question ID", "Selected Answer",
+      "Time Used", "Submitted At"
+    ],
+    "Violations": [
+      "Violation ID", "Attempt ID", "Type", "Timestamp"
+    ]
+  };
+
+  Object.entries(schemas).forEach(([sheetName, headers]) => {
+    let sheet = ss.getSheetByName(sheetName);
+
+    if (!sheet) {
+      sheet = ss.insertSheet(sheetName);
+      Logger.log("Created sheet: " + sheetName);
+    } else {
+      Logger.log("Sheet already exists: " + sheetName);
+    }
+
+    // Write headers only if row 1 is completely empty
+    const existingHeader = sheet.getRange(1, 1).getValue();
+    if (!existingHeader) {
+      sheet.getRange(1, 1, 1, headers.length).setValues([headers]);
+      // Style the header row
+      sheet.getRange(1, 1, 1, headers.length)
+        .setFontWeight("bold")
+        .setBackground("#4a4a72")
+        .setFontColor("#ffffff");
+      sheet.setFrozenRows(1);
+      Logger.log("Headers written for: " + sheetName);
+    }
+  });
+
+  // Remove the default "Sheet1" if it's empty and still exists
+  const defaultSheet = ss.getSheetByName("Sheet1");
+  if (defaultSheet && ss.getSheets().length > 1 && defaultSheet.getLastRow() === 0) {
+    ss.deleteSheet(defaultSheet);
+    Logger.log("Removed default Sheet1");
+  }
+
+  SpreadsheetApp.getUi().alert(
+    "✅ Setup Complete!\n\nAll 6 sheets have been created:\n• Exams\n• Students\n• Questions\n• Attempts\n• Answers\n• Violations\n\nYou can now deploy this as a Web App."
+  );
+}
+
