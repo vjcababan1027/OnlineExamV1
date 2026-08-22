@@ -38,7 +38,7 @@ function StudentGuard({ children }) {
 export default function App() {
   return (
     <AuthProvider>
-      <BrowserRouter basename="/proctor-exam">
+      <BrowserRouter basename="/OnlineExamV1">
         <Routes>
           {/* Public Entrance */}
           <Route path="/" element={<RoleSelect />} />
