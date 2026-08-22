@@ -65,46 +65,35 @@ function getOrCreateSheet(sheetName) {
   
   if (!sheet) {
     sheet = ss.insertSheet(sheetName);
-    if (headers.length > 0) {
-      sheet.getRange(1, 1, 1, headers.length).setValues([headers]);
-      sheet.getRange(1, 1, 1, headers.length)
-        .setFontWeight("bold")
-        .setBackground("#4a4a72")
-        .setFontColor("#ffffff");
-      sheet.setFrozenRows(1);
-    }
-  } else {
-    // If the tab exists but has no headers, initialize row 1
-    if (headers.length > 0 && sheet.getLastRow() === 0) {
-      sheet.getRange(1, 1, 1, headers.length).setValues([headers]);
-      sheet.getRange(1, 1, 1, headers.length)
-        .setFontWeight("bold")
-        .setBackground("#4a4a72")
-        .setFontColor("#ffffff");
-      sheet.setFrozenRows(1);
-    }
+  }
+  
+  // Ensure headers exist if sheet is empty
+  if (headers.length > 0 && (sheet.getLastRow() === 0 || sheet.getLastColumn() === 0)) {
+    sheet.getRange(1, 1, 1, headers.length).setValues([headers]);
+    sheet.getRange(1, 1, 1, headers.length)
+      .setFontWeight("bold")
+      .setBackground("#4a4a72")
+      .setFontColor("#ffffff");
+    sheet.setFrozenRows(1);
   }
   
   return sheet;
 }
 
-// Retrieve rows of a sheet mapped as javascript objects using the header row
+// Retrieve rows of a sheet mapped as javascript objects using the schema headers
 function getRowsAsObjects(sheetName) {
   const sheet = getOrCreateSheet(sheetName);
-  
+  const headers = SHEET_SCHEMAS[sheetName] || [];
   const lastRow = sheet.getLastRow();
-  const lastColumn = sheet.getLastColumn();
-  if (lastRow <= 1) return []; // Only headers or empty
   
-  const headers = sheet.getRange(1, 1, 1, lastColumn).getValues()[0];
-  const values = sheet.getRange(2, 1, lastRow - 1, lastColumn).getValues();
+  if (lastRow <= 1 || headers.length === 0) return [];
+  
+  const values = sheet.getRange(2, 1, lastRow - 1, headers.length).getValues();
   
   return values.map((row, rowIndex) => {
     const obj = { _rowNum: rowIndex + 2 }; // Store actual Google Sheet row index (1-based, starts at 2)
     headers.forEach((header, colIndex) => {
-      if (header) {
-        obj[header.toString().trim()] = row[colIndex];
-      }
+      obj[header] = row[colIndex];
     });
     return obj;
   });
@@ -113,16 +102,13 @@ function getRowsAsObjects(sheetName) {
 // Insert a row object matching headers
 function insertRow(sheetName, dataObj) {
   const sheet = getOrCreateSheet(sheetName);
+  const headers = SHEET_SCHEMAS[sheetName] || [];
   
-  const lastColumn = sheet.getLastColumn();
-  const headers = sheet.getRange(1, 1, 1, lastColumn).getValues()[0];
+  if (headers.length === 0) return false;
   
-  const newRow = new Array(lastColumn).fill("");
-  headers.forEach((header, index) => {
+  const newRow = headers.map(header => {
     const key = header.toString().trim();
-    if (dataObj.hasOwnProperty(key)) {
-      newRow[index] = dataObj[key];
-    }
+    return (dataObj.hasOwnProperty(key) && dataObj[key] !== undefined) ? dataObj[key] : "";
   });
   
   sheet.appendRow(newRow);
@@ -132,19 +118,17 @@ function insertRow(sheetName, dataObj) {
 // Update a row in a sheet matching a criteria (e.g. column value)
 function updateRow(sheetName, searchKey, searchValue, updateData) {
   const sheet = getOrCreateSheet(sheetName);
-  
+  const headers = SHEET_SCHEMAS[sheetName] || [];
   const rows = getRowsAsObjects(sheetName);
   const matchedRow = rows.find(r => r[searchKey] == searchValue);
   
   if (!matchedRow) return false;
   
   const rowNum = matchedRow._rowNum;
-  const lastColumn = sheet.getLastColumn();
-  const headers = sheet.getRange(1, 1, 1, lastColumn).getValues()[0];
   
   headers.forEach((header, index) => {
     const key = header.toString().trim();
-    if (updateData.hasOwnProperty(key)) {
+    if (updateData.hasOwnProperty(key) && updateData[key] !== undefined) {
       sheet.getRange(rowNum, index + 1).setValue(updateData[key]);
     }
   });
