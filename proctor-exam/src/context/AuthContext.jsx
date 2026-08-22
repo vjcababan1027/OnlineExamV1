@@ -24,16 +24,6 @@ export function AuthProvider({ children }) {
   
   const loginTeacher = async (passcode) => {
     try {
-      if (!apiUrl) {
-        if (passcode === '102799') {
-          const token = 'setup-session-token';
-          setTeacherToken(token);
-          sessionStorage.setItem('PROCTOR_TEACHER_TOKEN', token);
-          return { success: true, isSetup: true };
-        }
-        return { success: false, error: "API URL is not set. Enter the default passcode to configure it." };
-      }
-      
       const data = await callApi('teacherLogin', { passcode });
       if (data.success && data.token) {
         setTeacherToken(data.token);
