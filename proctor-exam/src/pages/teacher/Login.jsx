@@ -91,7 +91,8 @@ export default function TeacherLogin() {
             color: 'var(--danger)',
             fontSize: '0.85rem',
             marginBottom: '1.5rem',
-            textAlign: 'left'
+            textAlign: 'left',
+            whiteSpace: 'pre-line'
           }}>
             {error}
           </div>

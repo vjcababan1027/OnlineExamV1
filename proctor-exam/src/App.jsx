@@ -1,5 +1,5 @@
 import React from 'react';
-import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
+import { HashRouter, Routes, Route, Navigate } from 'react-router-dom';
 import { AuthProvider, useAuth } from './context/AuthContext';
 
 // Import Pages
@@ -38,7 +38,7 @@ function StudentGuard({ children }) {
 export default function App() {
   return (
     <AuthProvider>
-      <BrowserRouter basename="/OnlineExamV1">
+      <HashRouter>
         <Routes>
           {/* Public Entrance */}
           <Route path="/" element={<RoleSelect />} />
@@ -102,7 +102,7 @@ export default function App() {
           {/* Catch-all redirect */}
           <Route path="*" element={<Navigate to="/" replace />} />
         </Routes>
-      </BrowserRouter>
+      </HashRouter>
     </AuthProvider>
   );
 }
