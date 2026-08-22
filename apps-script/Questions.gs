@@ -16,8 +16,7 @@ function handleImportQuestions(body) {
     }
     
     // Remove existing questions for this exam to ensure clean replacement
-    const sheet = getSpreadsheet().getSheetByName("Questions");
-    if (!sheet) throw new Error("Questions sheet not found");
+    const sheet = getOrCreateSheet("Questions");
     
     const lastRow = sheet.getLastRow();
     if (lastRow > 1) {
