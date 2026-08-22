@@ -13,7 +13,11 @@ export async function callApi(action, payload = {}) {
   try {
     const response = await fetch(apiUrl, {
       method: 'POST',
-      body: JSON.stringify({ action, ...payload })
+      headers: {
+        'Content-Type': 'text/plain;charset=utf-8'
+      },
+      body: JSON.stringify({ action, ...payload }),
+      redirect: 'follow'
     });
 
     if (!response.ok) {
