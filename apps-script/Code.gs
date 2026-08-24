@@ -20,9 +20,12 @@ function handleAction(body) {
     createExam: handleCreateExam,
     duplicateExam: handleDuplicateExam,
     
-    // Imports
+    // Imports & Roster Management
     importStudents: handleImportStudents,
     importQuestions: handleImportQuestions,
+    getStudents: handleGetStudents,
+    addStudent: handleAddStudent,
+    deleteStudent: handleDeleteStudent,
     
     // Student verification & runner
     studentVerify: handleStudentVerify,
@@ -44,6 +47,7 @@ function handleAction(body) {
   
   const writeActions = [
     "createExam", "duplicateExam", "importStudents", "importQuestions",
+    "addStudent", "deleteStudent",
     "startAttempt", "submitAnswer", "logViolation", "finishAttempt", "updateExamStatus"
   ];
   

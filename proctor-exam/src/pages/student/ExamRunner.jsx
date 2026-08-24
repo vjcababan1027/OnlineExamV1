@@ -145,17 +145,24 @@ export default function ExamRunner() {
     }
   };
 
+  const pendingSubmissionsRef = useRef([]);
+
   // Auto-grading / submission when limit is hit or completed with continuous retry
   const handleAutoSubmit = async (statusLabel = "Auto-Submitted") => {
     setIsAttemptActive(false);
     clearInterval(timerRef.current);
     setLoading(true);
-    setSyncStatus('Submitting final exam results...');
+    setSyncStatus('Finishing and submitting exam results...');
     
     try {
       // Exit fullscreen safely
       if (document.exitFullscreen && document.fullscreenElement) {
         await document.exitFullscreen();
+      }
+      
+      // Wait for all pending background submissions to resolve
+      if (pendingSubmissionsRef.current.length > 0) {
+        await Promise.allSettled(pendingSubmissionsRef.current);
       }
       
       // Call finishAttempt on backend with critical retry
@@ -173,48 +180,46 @@ export default function ExamRunner() {
     }
   };
 
-  // Submit Answer & Move Forward to Next Question with continuous retry
+  // Submit Answer & Move Forward to Next Question INSTANTANEOUSLY
   const handleNext = async () => {
     if (questions.length === 0) return;
     
     const currentQuestion = questions[currentIndex];
     const answerToSubmit = currentQuestion.type === 'IDENTIFICATION' ? identificationAnswer : selectedAnswer;
+    const timeUsed = timeSpentRef.current;
     
-    setLoading(true);
-    setSyncStatus('Saving answer...');
-    try {
-      // Submit answer to backend with critical retry
-      await callApi('submitAnswer', {
-        attemptId,
-        questionId: currentQuestion.questionId,
-        selectedAnswer: answerToSubmit,
-        timeUsed: timeSpentRef.current
-      }, {
-        critical: true,
-        onRetry: (att, msg) => setSyncStatus(`Saving answer: ${msg}`)
-      });
-      
+    // Asynchronously submit answer to backend in the background
+    const bgSubmission = callApi('submitAnswer', {
+      attemptId,
+      questionId: currentQuestion.questionId,
+      selectedAnswer: answerToSubmit,
+      timeUsed: timeUsed
+    }, {
+      critical: true,
+      onRetry: (att, msg) => setSyncStatus(`Saving answer (Q${currentIndex + 1}): ${msg}`)
+    }).then(() => {
       setSyncStatus('');
-      // Reset input variables for next question
-      setSelectedAnswer('');
-      setIdentificationAnswer('');
-      timeSpentRef.current = 0;
-      
-      const nextIndex = currentIndex + 1;
-      if (nextIndex < questions.length) {
-        const nextLimit = getQuestionTimeLimit(nextIndex, questions);
-        totalDurationSeconds.current = nextLimit;
-        setCurrentIndex(nextIndex);
-        setSecondsLeft(nextLimit);
-        setLoading(false);
-      } else {
-        // Complete the exam attempt
-        handleAutoSubmit("Finished");
-      }
-    } catch (err) {
-      setSyncStatus('');
-      alert("Failed to save answer: " + err.message);
-      setLoading(false);
+    }).catch(err => {
+      console.warn("Background answer save warning:", err);
+    });
+
+    pendingSubmissionsRef.current.push(bgSubmission);
+    
+    // Reset input variables for next question
+    setSelectedAnswer('');
+    setIdentificationAnswer('');
+    timeSpentRef.current = 0;
+    
+    const nextIndex = currentIndex + 1;
+    if (nextIndex < questions.length) {
+      // INSTANT TRANSITION: No waiting for network!
+      const nextLimit = getQuestionTimeLimit(nextIndex, questions);
+      totalDurationSeconds.current = nextLimit;
+      setCurrentIndex(nextIndex);
+      setSecondsLeft(nextLimit);
+    } else {
+      // Complete the exam attempt (waits for all background saves)
+      handleAutoSubmit("Finished");
     }
   };
 
