@@ -49,6 +49,8 @@ function handleCreateExam(body) {
       "Deduction": Number(examData.deduction) || 0,
       "Max Violations": Number(examData.maxViolations) || 3,
       "Randomize": examData.randomize ? "TRUE" : "FALSE",
+      "Timer Mode": examData.timerMode || "per_question",
+      "Per Question Sec": Number(examData.perQuestionSec) || 60,
       "Status": "Active",
       "Created At": new Date().toISOString()
     };
@@ -98,6 +100,8 @@ function handleDuplicateExam(body) {
       "Deduction": sourceExam["Deduction"],
       "Max Violations": sourceExam["Max Violations"],
       "Randomize": sourceExam["Randomize"],
+      "Timer Mode": sourceExam["Timer Mode"] || "per_question",
+      "Per Question Sec": sourceExam["Per Question Sec"] || 60,
       "Status": "Active",
       "Created At": new Date().toISOString()
     };
@@ -121,7 +125,8 @@ function handleDuplicateExam(body) {
         "C": q["C"],
         "D": q["D"],
         "Answer": q["Answer"],
-        "Points": q["Points"]
+        "Points": q["Points"],
+        "Time Limit (Sec)": q["Time Limit (Sec)"] || ""
       };
       insertRow("Questions", newQuestionRow);
     });

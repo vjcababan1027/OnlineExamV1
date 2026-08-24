@@ -57,7 +57,25 @@ export default function ExamRunner() {
     };
   }, []);
 
-  // Fetch Questions
+  // Fetch Questions & Setup Timers
+  const getQuestionTimeLimit = (qIndex, questionList) => {
+    const list = questionList || questions;
+    if (!list || list.length === 0 || !list[qIndex]) return 60;
+    const q = list[qIndex];
+    if (q.timeLimit && Number(q.timeLimit) > 0) {
+      return Number(q.timeLimit);
+    }
+    const meta = studentAttempt?.examMeta || {};
+    if (meta.timerMode === 'per_question' && meta.perQuestionSec) {
+      return Number(meta.perQuestionSec);
+    }
+    if (meta.duration && list.length > 0) {
+      const splitLimit = Math.floor((Number(meta.duration) * 60) / list.length);
+      return splitLimit > 5 ? splitLimit : 60;
+    }
+    return 60;
+  };
+
   useEffect(() => {
     const loadQuestions = async () => {
       try {
@@ -68,12 +86,9 @@ export default function ExamRunner() {
         
         if (data.success && data.questions) {
           setQuestions(data.questions);
-          
-          // Calculate per-question time limit dynamically
-          // limit = (duration in minutes * 60) / total questions
-          const limit = Math.floor((studentAttempt.examMeta.duration * 60) / data.questions.length);
-          totalDurationSeconds.current = limit;
-          setSecondsLeft(limit > 10 ? limit : 60); // Default to 60 if too short
+          const initialLimit = getQuestionTimeLimit(0, data.questions);
+          totalDurationSeconds.current = initialLimit;
+          setSecondsLeft(initialLimit);
         } else {
           setError(data.error || "Could not retrieve exam questions.");
         }
@@ -149,7 +164,7 @@ export default function ExamRunner() {
     }
   };
 
-  // Submit Answer & Move Forward
+  // Submit Answer & Move Forward to Next Question
   const handleNext = async () => {
     if (questions.length === 0) return;
     
@@ -166,15 +181,17 @@ export default function ExamRunner() {
         timeUsed: timeSpentRef.current
       });
       
-      // Reset variables
+      // Reset input variables for next question
       setSelectedAnswer('');
       setIdentificationAnswer('');
       timeSpentRef.current = 0;
       
       const nextIndex = currentIndex + 1;
       if (nextIndex < questions.length) {
+        const nextLimit = getQuestionTimeLimit(nextIndex, questions);
+        totalDurationSeconds.current = nextLimit;
         setCurrentIndex(nextIndex);
-        setSecondsLeft(totalDurationSeconds.current > 10 ? totalDurationSeconds.current : 60);
+        setSecondsLeft(nextLimit);
         setLoading(false);
       } else {
         // Complete the exam attempt
@@ -272,13 +289,13 @@ export default function ExamRunner() {
         </div>
       </div>
 
-      {/* Progress Bar */}
+      {/* Progress Bar (Overall Questions) */}
       <div style={{
         width: '100%',
         height: '6px',
         background: 'rgba(255,255,255,0.05)',
         borderRadius: '9999px',
-        marginBottom: '2.5rem',
+        marginBottom: '1rem',
         overflow: 'hidden'
       }}>
         <div style={{
@@ -291,12 +308,41 @@ export default function ExamRunner() {
       </div>
 
       {/* Question Card */}
-      <div className="glass-card" style={{ padding: '2.5rem', minHeight: '350px', display: 'flex', flexDirection: 'column', justifyContent: 'space-between' }}>
+      <div className="glass-card" style={{ padding: '2.5rem', minHeight: '350px', display: 'flex', flexDirection: 'column', justifyContent: 'space-between', position: 'relative', overflow: 'hidden' }}>
         
-        {/* Question Text */}
+        {/* Per-Question Live Timer Bar */}
+        <div style={{
+          position: 'absolute',
+          top: 0,
+          left: 0,
+          right: 0,
+          height: '4px',
+          background: 'rgba(255,255,255,0.08)'
+        }}>
+          <div style={{
+            height: '100%',
+            width: `${Math.max(0, Math.min(100, (secondsLeft / (totalDurationSeconds.current || 60)) * 100))}%`,
+            background: secondsLeft <= 10 ? 'var(--danger)' : secondsLeft <= 20 ? 'var(--warning, #f59e0b)' : 'var(--accent)',
+            transition: 'width 1s linear, background-color 0.3s ease'
+          }}></div>
+        </div>
+
+        {/* Question Header & Content */}
         <div>
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1.5rem' }}>
-            <span className="badge badge-active">Question {currentIndex + 1}</span>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
+              <span className="badge badge-active">Question {currentIndex + 1} of {questions.length}</span>
+              {secondsLeft <= 10 && (
+                <span style={{ 
+                  color: 'var(--danger)', 
+                  fontSize: '0.8rem', 
+                  fontWeight: 600,
+                  animation: 'pulse 1s infinite'
+                }}>
+                  ⚠️ Auto-submitting in {secondsLeft}s!
+                </span>
+              )}
+            </div>
             <span style={{ fontSize: '0.85rem', color: 'var(--text-muted)' }}>{currentQuestion.points} point{currentQuestion.points !== 1 ? 's' : ''}</span>
           </div>
           

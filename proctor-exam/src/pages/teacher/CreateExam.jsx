@@ -18,6 +18,8 @@ export default function CreateExam() {
   const [deduction, setDeduction] = useState('2');
   const [maxViolations, setMaxViolations] = useState('3');
   const [randomize, setRandomize] = useState(false);
+  const [timerMode, setTimerMode] = useState('per_question'); // 'per_question' or 'overall'
+  const [perQuestionSec, setPerQuestionSec] = useState('60');
 
   useEffect(() => {
     if (!teacherToken) {
@@ -42,12 +44,14 @@ export default function CreateExam() {
           title: title.trim(),
           code: code.trim().toUpperCase(),
           section: section.trim(),
-          duration: Number(duration),
+          duration: Number(duration) || 60,
           startTime: startTime ? new Date(startTime).toISOString() : '',
           endTime: endTime ? new Date(endTime).toISOString() : '',
           deduction: Number(deduction),
           maxViolations: Number(maxViolations),
-          randomize
+          randomize,
+          timerMode,
+          perQuestionSec: Number(perQuestionSec) || 60
         }
       });
       
@@ -174,6 +178,91 @@ export default function CreateExam() {
                 onChange={(e) => setEndTime(e.target.value)}
               />
             </div>
+          </div>
+          
+          {/* Timer Mode Selection */}
+          <div className="form-group" style={{ 
+            background: 'rgba(255, 255, 255, 0.03)', 
+            padding: '1.25rem', 
+            borderRadius: 'var(--radius-md)', 
+            border: '1px solid rgba(255, 255, 255, 0.1)',
+            marginBottom: '1.5rem'
+          }}>
+            <label className="form-label" style={{ fontSize: '1rem', color: '#fff', marginBottom: '0.75rem', display: 'block' }}>
+              ⏱️ Question Display & Timer Mode
+            </label>
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem', marginBottom: '1rem' }}>
+              <div 
+                onClick={() => setTimerMode('per_question')}
+                style={{
+                  padding: '1rem',
+                  borderRadius: 'var(--radius-sm)',
+                  border: timerMode === 'per_question' ? '2px solid var(--primary)' : '1px solid rgba(255, 255, 255, 0.1)',
+                  background: timerMode === 'per_question' ? 'rgba(99, 102, 241, 0.15)' : 'transparent',
+                  cursor: 'pointer',
+                  transition: 'all 0.2s ease'
+                }}
+              >
+                <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginBottom: '0.25rem' }}>
+                  <input 
+                    type="radio" 
+                    name="timerMode" 
+                    checked={timerMode === 'per_question'} 
+                    onChange={() => setTimerMode('per_question')} 
+                    style={{ accentColor: 'var(--primary)' }}
+                  />
+                  <strong style={{ fontSize: '0.95rem' }}>1 Question with Own Timer</strong>
+                </div>
+                <p style={{ fontSize: '0.8rem', color: 'var(--text-secondary)', margin: 0, paddingLeft: '1.4rem' }}>
+                  Only 1 question appears on screen at a time with its own countdown timer. Auto-advances when timer expires.
+                </p>
+              </div>
+
+              <div 
+                onClick={() => setTimerMode('overall')}
+                style={{
+                  padding: '1rem',
+                  borderRadius: 'var(--radius-sm)',
+                  border: timerMode === 'overall' ? '2px solid var(--primary)' : '1px solid rgba(255, 255, 255, 0.1)',
+                  background: timerMode === 'overall' ? 'rgba(99, 102, 241, 0.15)' : 'transparent',
+                  cursor: 'pointer',
+                  transition: 'all 0.2s ease'
+                }}
+              >
+                <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginBottom: '0.25rem' }}>
+                  <input 
+                    type="radio" 
+                    name="timerMode" 
+                    checked={timerMode === 'overall'} 
+                    onChange={() => setTimerMode('overall')} 
+                    style={{ accentColor: 'var(--primary)' }}
+                  />
+                  <strong style={{ fontSize: '0.95rem' }}>Full Exam Timer</strong>
+                </div>
+                <p style={{ fontSize: '0.8rem', color: 'var(--text-secondary)', margin: 0, paddingLeft: '1.4rem' }}>
+                  Shared total duration timer for the entire exam.
+                </p>
+              </div>
+            </div>
+
+            {timerMode === 'per_question' && (
+              <div className="form-group" style={{ marginTop: '1rem', marginBottom: 0 }}>
+                <label className="form-label">Default Time per Question (Seconds)</label>
+                <div style={{ display: 'flex', gap: '0.75rem', alignItems: 'center' }}>
+                  <input
+                    type="number"
+                    className="form-control"
+                    min="5"
+                    max="600"
+                    style={{ maxWidth: '150px' }}
+                    value={perQuestionSec}
+                    onChange={(e) => setPerQuestionSec(e.target.value)}
+                    required
+                  />
+                  <span style={{ fontSize: '0.85rem', color: 'var(--text-secondary)' }}>seconds per question (e.g. 30, 60, 90s)</span>
+                </div>
+              </div>
+            )}
           </div>
           
           <div className="form-row">

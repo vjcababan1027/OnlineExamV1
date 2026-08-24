@@ -7,14 +7,14 @@ const SHEET_SCHEMAS = {
   "Exams": [
     "Exam ID", "Title", "Code", "Section", "Duration (Mins)",
     "Start Time", "End Time", "Deduction", "Max Violations",
-    "Randomize", "Status", "Created At"
+    "Randomize", "Timer Mode", "Per Question Sec", "Status", "Created At"
   ],
   "Students": [
     "Student ID", "Name", "Section", "Exam ID"
   ],
   "Questions": [
     "Question ID", "Exam ID", "Number", "Type", "Question Text",
-    "A", "B", "C", "D", "Answer", "Points"
+    "A", "B", "C", "D", "Answer", "Points", "Time Limit (Sec)"
   ],
   "Attempts": [
     "Attempt ID", "Exam ID", "Student ID", "Start Time", "End Time",
@@ -68,13 +68,17 @@ function getOrCreateSheet(sheetName) {
   }
   
   // Ensure headers exist if sheet is empty
-  if (headers.length > 0 && (sheet.getLastRow() === 0 || sheet.getLastColumn() === 0)) {
-    sheet.getRange(1, 1, 1, headers.length).setValues([headers]);
-    sheet.getRange(1, 1, 1, headers.length)
-      .setFontWeight("bold")
-      .setBackground("#4a4a72")
-      .setFontColor("#ffffff");
-    sheet.setFrozenRows(1);
+  if (headers && headers.length > 0) {
+    const lastRow = sheet.getLastRow();
+    const lastCol = sheet.getLastColumn();
+    if (lastRow === 0 || lastCol === 0) {
+      sheet.getRange(1, 1, 1, headers.length).setValues([headers]);
+      sheet.getRange(1, 1, 1, headers.length)
+        .setFontWeight("bold")
+        .setBackground("#4a4a72")
+        .setFontColor("#ffffff");
+      sheet.setFrozenRows(1);
+    }
   }
   
   return sheet;
@@ -85,15 +89,17 @@ function getRowsAsObjects(sheetName) {
   const sheet = getOrCreateSheet(sheetName);
   const headers = SHEET_SCHEMAS[sheetName] || [];
   const lastRow = sheet.getLastRow();
+  const lastCol = sheet.getLastColumn();
   
-  if (lastRow <= 1 || headers.length === 0) return [];
+  if (lastRow <= 1 || !headers || headers.length === 0 || lastCol === 0) return [];
   
-  const values = sheet.getRange(2, 1, lastRow - 1, headers.length).getValues();
+  const numCols = Math.min(headers.length, Math.max(1, lastCol));
+  const values = sheet.getRange(2, 1, lastRow - 1, numCols).getValues();
   
   return values.map((row, rowIndex) => {
     const obj = { _rowNum: rowIndex + 2 }; // Store actual Google Sheet row index (1-based, starts at 2)
     headers.forEach((header, colIndex) => {
-      obj[header] = row[colIndex];
+      obj[header] = (colIndex < row.length && row[colIndex] !== undefined) ? row[colIndex] : "";
     });
     return obj;
   });
@@ -104,7 +110,7 @@ function insertRow(sheetName, dataObj) {
   const sheet = getOrCreateSheet(sheetName);
   const headers = SHEET_SCHEMAS[sheetName] || [];
   
-  if (headers.length === 0) return false;
+  if (!headers || headers.length === 0) return false;
   
   const newRow = headers.map(header => {
     const key = header.toString().trim();
@@ -167,6 +173,8 @@ function setupSheets() {
   // Clean up default Sheet1 if empty
   const defaultSheet = ss.getSheetByName("Sheet1");
   if (defaultSheet && ss.getSheets().length > 1 && defaultSheet.getLastRow() === 0) {
-    ss.deleteSheet(defaultSheet);
+    try {
+      ss.deleteSheet(defaultSheet);
+    } catch(e) {}
   }
 }

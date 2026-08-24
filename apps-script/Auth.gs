@@ -18,10 +18,25 @@ function handleTeacherLogin(body) {
   const passcode = body.passcode;
   const storedPasscode = getTeacherPasscode();
   
-  if (passcode === storedPasscode) {
+  if (passcode && passcode.toString().trim() === storedPasscode.toString().trim()) {
     // Generate a fresh session token
     const token = generateUUID();
-    PropertiesService.getScriptProperties().setProperty("TEACHER_TOKEN", token);
+    const props = PropertiesService.getScriptProperties();
+    
+    // Store in multi-session tokens list
+    let tokens = [];
+    try {
+      tokens = JSON.parse(props.getProperty("TEACHER_TOKENS") || "[]");
+    } catch (e) {
+      tokens = [];
+    }
+    if (!Array.isArray(tokens)) tokens = [];
+    tokens.push(token);
+    if (tokens.length > 20) tokens = tokens.slice(-20);
+    
+    props.setProperty("TEACHER_TOKENS", JSON.stringify(tokens));
+    props.setProperty("TEACHER_TOKEN", token); // Backward compatibility
+    
     return { success: true, token: token };
   }
   
@@ -44,9 +59,28 @@ function handleChangePasscode(body) {
   return { success: true };
 }
 
-// Verify that the provided token matches the active session token
+// Verify that the provided token matches an active session token
 function verifyTeacherToken(token) {
   if (!token) return false;
-  const storedToken = PropertiesService.getScriptProperties().getProperty("TEACHER_TOKEN");
-  return token === storedToken;
+  const props = PropertiesService.getScriptProperties();
+  const tokenStr = token.toString().trim();
+  
+  // 1. Check legacy single token
+  const legacyToken = props.getProperty("TEACHER_TOKEN");
+  if (tokenStr === legacyToken) return true;
+  
+  // 2. Check multi-session tokens array
+  try {
+    const tokens = JSON.parse(props.getProperty("TEACHER_TOKENS") || "[]");
+    if (Array.isArray(tokens) && tokens.indexOf(tokenStr) !== -1) {
+      return true;
+    }
+  } catch(e) {}
+  
+  // 3. Allow current passcode as master authentication key
+  const storedPasscode = getTeacherPasscode();
+  if (tokenStr === storedPasscode) return true;
+  
+  return false;
 }
+

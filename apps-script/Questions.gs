@@ -45,7 +45,8 @@ function handleImportQuestions(body) {
         "C": q.c || "",
         "D": q.d || "",
         "Answer": q.answer ? q.answer.toString().trim() : "",
-        "Points": Number(q.points) || 1
+        "Points": Number(q.points) || 1,
+        "Time Limit (Sec)": q.timeLimit ? Number(q.timeLimit) : ""
       };
       
       insertRow("Questions", newQuestionRow);

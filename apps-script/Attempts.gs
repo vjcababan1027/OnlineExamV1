@@ -62,10 +62,12 @@ function handleStudentVerify(body) {
           examId: exam["Exam ID"],
           title: exam["Title"],
           code: exam["Code"],
-          duration: exam["Duration (Mins)"],
-          deduction: exam["Deduction"],
-          maxViolations: exam["Max Violations"],
-          randomize: exam["Randomize"] === "TRUE"
+          duration: Number(exam["Duration (Mins)"]) || 60,
+          deduction: Number(exam["Deduction"]) || 0,
+          maxViolations: Number(exam["Max Violations"]) || 3,
+          randomize: exam["Randomize"] === "TRUE",
+          timerMode: exam["Timer Mode"] || "per_question",
+          perQuestionSec: Number(exam["Per Question Sec"]) || 60
         },
         attemptId: studentAttempt["Attempt ID"],
         resumed: true
@@ -80,10 +82,12 @@ function handleStudentVerify(body) {
         examId: exam["Exam ID"],
         title: exam["Title"],
         code: exam["Code"],
-        duration: exam["Duration (Mins)"],
-        deduction: exam["Deduction"],
-        maxViolations: exam["Max Violations"],
-        randomize: exam["Randomize"] === "TRUE"
+        duration: Number(exam["Duration (Mins)"]) || 60,
+        deduction: Number(exam["Deduction"]) || 0,
+        maxViolations: Number(exam["Max Violations"]) || 3,
+        randomize: exam["Randomize"] === "TRUE",
+        timerMode: exam["Timer Mode"] || "per_question",
+        perQuestionSec: Number(exam["Per Question Sec"]) || 60
       },
       resumed: false
     };
@@ -141,7 +145,8 @@ function handleStartAttempt(body) {
         b: q["B"],
         c: q["C"],
         d: q["D"],
-        points: q["Points"]
+        points: q["Points"],
+        timeLimit: Number(q["Time Limit (Sec)"]) || null
       };
     });
     
@@ -159,7 +164,16 @@ function handleStartAttempt(body) {
       }
     }
     
-    return { success: true, attemptId: attemptId, questions: mappedQuestions };
+    return { 
+      success: true, 
+      attemptId: attemptId, 
+      questions: mappedQuestions,
+      examMeta: exam ? {
+        timerMode: exam["Timer Mode"] || "per_question",
+        perQuestionSec: Number(exam["Per Question Sec"]) || 60,
+        duration: Number(exam["Duration (Mins)"]) || 60
+      } : null
+    };
   } catch (error) {
     return { success: false, error: error.toString() };
   }
