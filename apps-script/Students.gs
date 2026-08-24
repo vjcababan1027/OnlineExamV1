@@ -14,7 +14,7 @@ function handleGetStudents(body) {
     if (!examId) return { success: false, error: "Missing examId" };
     
     const allStudents = getRowsAsObjects("Students");
-    const examStudents = allStudents.filter(s => s["Exam ID"] === examId);
+    const examStudents = allStudents.filter(s => String(s["Exam ID"]).trim() === String(examId).trim());
     
     return {
       success: true,
