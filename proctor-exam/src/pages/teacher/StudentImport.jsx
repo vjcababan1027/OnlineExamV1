@@ -247,7 +247,6 @@ export default function StudentImport() {
                   placeholder="e.g. Juan Dela Cruz"
                   value={singleName}
                   onChange={(e) => setSingleName(e.target.value)}
-                  required
                 />
               </div>
               <div className="form-group" style={{ marginBottom: 0 }}>
@@ -258,16 +257,15 @@ export default function StudentImport() {
                   placeholder="e.g. Section A"
                   value={singleSection}
                   onChange={(e) => setSingleSection(e.target.value)}
-                  required
                 />
               </div>
               <button 
                 type="submit" 
                 className="btn btn-primary"
                 style={{ height: '42px', minWidth: '120px', background: 'linear-gradient(135deg, var(--accent) 0%, #0d9488 100%)' }}
-                disabled={addingSingle}
+                disabled={addingSingle || !singleName.trim() || !singleSection.trim()}
               >
-                {addingSingle ? "Adding..." : "+ Add Student"}
+                {addingSingle ? 'Adding...' : '+ Add Student'}
               </button>
             </form>
           </div>
