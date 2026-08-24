@@ -28,6 +28,8 @@ export default function ExamRunner() {
   const [isAttemptActive, setIsAttemptActive] = useState(true);
   const [maxViolationsReached, setMaxViolationsReached] = useState(false);
   const [syncStatus, setSyncStatus] = useState(''); // Network retry message
+  const [submitToast, setSubmitToast] = useState(false); // Success toast
+  const [showNoAnswerWarning, setShowNoAnswerWarning] = useState(false); // No-answer popup
 
   // Redirect to login if auth is lost
   useEffect(() => {
@@ -180,15 +182,12 @@ export default function ExamRunner() {
     }
   };
 
-  // Submit Answer & Move Forward to Next Question INSTANTANEOUSLY
-  const handleNext = async () => {
-    if (questions.length === 0) return;
-    
+  // Core function: advance to next question (used by both Next and Skip)
+  const advanceQuestion = (answerToSubmit) => {
     const currentQuestion = questions[currentIndex];
-    const answerToSubmit = currentQuestion.type === 'IDENTIFICATION' ? identificationAnswer : selectedAnswer;
     const timeUsed = timeSpentRef.current;
-    
-    // Asynchronously submit answer to backend in the background
+
+    // Fire-and-forget background submission
     const bgSubmission = callApi('submitAnswer', {
       attemptId,
       questionId: currentQuestion.questionId,
@@ -200,27 +199,54 @@ export default function ExamRunner() {
     }).then(() => {
       setSyncStatus('');
     }).catch(err => {
-      console.warn("Background answer save warning:", err);
+      console.warn('Background answer save warning:', err);
     });
 
     pendingSubmissionsRef.current.push(bgSubmission);
-    
-    // Reset input variables for next question
+
+    // Reset inputs
     setSelectedAnswer('');
     setIdentificationAnswer('');
     timeSpentRef.current = 0;
-    
+
     const nextIndex = currentIndex + 1;
     if (nextIndex < questions.length) {
-      // INSTANT TRANSITION: No waiting for network!
       const nextLimit = getQuestionTimeLimit(nextIndex, questions);
       totalDurationSeconds.current = nextLimit;
       setCurrentIndex(nextIndex);
       setSecondsLeft(nextLimit);
     } else {
-      // Complete the exam attempt (waits for all background saves)
-      handleAutoSubmit("Finished");
+      handleAutoSubmit('Finished');
     }
+  };
+
+  // Next button: warn if no answer selected
+  const handleNext = () => {
+    if (questions.length === 0) return;
+    const currentQuestion = questions[currentIndex];
+    const answer = currentQuestion.type === 'IDENTIFICATION' ? identificationAnswer.trim() : selectedAnswer;
+    if (!answer) {
+      // Show warning popup instead of proceeding
+      setShowNoAnswerWarning(true);
+      return;
+    }
+    // Show success toast
+    setSubmitToast(true);
+    setTimeout(() => setSubmitToast(false), 2000);
+    advanceQuestion(answer);
+  };
+
+  // Confirm: proceed even without an answer (from popup)
+  const handleConfirmNext = () => {
+    setShowNoAnswerWarning(false);
+    advanceQuestion(''); // Submit blank
+  };
+
+  // Skip: silently skip with blank answer, no popup
+  const handleSkip = () => {
+    if (questions.length === 0) return;
+    setShowNoAnswerWarning(false);
+    advanceQuestion('');
   };
 
   // Question timer effect
@@ -469,18 +495,105 @@ export default function ExamRunner() {
         </div>
 
         {/* Action Controls */}
-        <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: '2.5rem', borderTop: '1px solid var(--border-color)', paddingTop: '1.5rem' }}>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: '2.5rem', borderTop: '1px solid var(--border-color)', paddingTop: '1.5rem' }}>
+          {/* Skip button — only show if not the last question */}
+          {currentIndex < questions.length - 1 ? (
+            <button
+              className="btn btn-secondary"
+              style={{ fontSize: '0.85rem', padding: '0.6rem 1.2rem', opacity: 0.75 }}
+              onClick={handleSkip}
+              disabled={loading}
+              title="Skip this question and leave it unanswered"
+            >
+              ⏭ Skip
+            </button>
+          ) : <span />}
+
           <button
             className="btn btn-primary"
-            style={{ minWidth: '150px', background: 'linear-gradient(135deg, var(--accent) 0%, #0d9488 100%)', boxShadow: '0 4px 15px var(--accent-glow)' }}
+            style={{ minWidth: '170px', background: 'linear-gradient(135deg, var(--accent) 0%, #0d9488 100%)', boxShadow: '0 4px 15px var(--accent-glow)' }}
             onClick={handleNext}
             disabled={loading}
           >
-            {loading ? "Submitting..." : currentIndex === questions.length - 1 ? "Finish & Submit Exam" : "Next Question →"}
+            {loading ? 'Submitting...' : currentIndex === questions.length - 1 ? 'Finish & Submit Exam' : 'Submit & Next →'}
           </button>
         </div>
 
       </div>
+
+      {/* ✅ Answer Submitted Success Toast */}
+      {submitToast && (
+        <div style={{
+          position: 'fixed',
+          bottom: '2rem',
+          left: '50%',
+          transform: 'translateX(-50%)',
+          background: 'rgba(16, 185, 129, 0.95)',
+          color: '#fff',
+          padding: '0.85rem 2rem',
+          borderRadius: 'var(--radius-md)',
+          fontWeight: 700,
+          fontSize: '1rem',
+          boxShadow: '0 8px 32px rgba(16, 185, 129, 0.35)',
+          zIndex: 10000,
+          display: 'flex',
+          alignItems: 'center',
+          gap: '0.6rem',
+          animation: 'fadeInUp 0.3s ease'
+        }}>
+          <span style={{ fontSize: '1.3rem' }}>✅</span> Answer submitted successfully!
+        </div>
+      )}
+
+      {/* ⚠️ No Answer Warning Popup */}
+      {showNoAnswerWarning && (
+        <div style={{
+          position: 'fixed',
+          top: 0, left: 0, right: 0, bottom: 0,
+          backgroundColor: 'rgba(10, 11, 16, 0.85)',
+          backdropFilter: 'blur(8px)',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          zIndex: 9998
+        }}>
+          <div className="glass-card text-center" style={{
+            maxWidth: '420px',
+            width: '100%',
+            border: '1px solid rgba(245, 158, 11, 0.4)',
+            boxShadow: '0 0 40px rgba(245, 158, 11, 0.15)'
+          }}>
+            <span style={{ fontSize: '3rem', display: 'block', marginBottom: '1rem' }}>⚠️</span>
+            <h3 style={{ fontSize: '1.4rem', marginBottom: '0.75rem', color: '#fbbf24' }}>No Answer Selected</h3>
+            <p style={{ color: 'var(--text-secondary)', fontSize: '0.95rem', marginBottom: '2rem', lineHeight: 1.6 }}>
+              You have not selected or typed an answer for this question.<br />
+              Do you want to <strong style={{ color: '#fff' }}>skip it</strong> and leave it blank, or <strong style={{ color: 'var(--accent)' }}>go back</strong> to answer?
+            </p>
+            <div style={{ display: 'flex', gap: '1rem' }}>
+              <button
+                className="btn btn-secondary"
+                style={{ flex: 1 }}
+                onClick={() => setShowNoAnswerWarning(false)}
+              >
+                ← Go Back &amp; Answer
+              </button>
+              <button
+                className="btn"
+                style={{
+                  flex: 1,
+                  background: 'rgba(245, 158, 11, 0.15)',
+                  border: '1px solid rgba(245, 158, 11, 0.4)',
+                  color: '#fbbf24',
+                  fontWeight: 600
+                }}
+                onClick={handleConfirmNext}
+              >
+                Skip &amp; Continue →
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Proctoring Violation warnings overlay */}
       {violationModalOpen && activeViolation && (
