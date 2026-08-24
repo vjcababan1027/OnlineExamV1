@@ -89,12 +89,13 @@ export default function StudentImport() {
       if (data.success && data.student) {
         setSuccess(`Student '${data.student.name}' added with ID: ${data.student.studentId}`);
         setSingleName('');
-        setExistingStudents(prev => [...prev, data.student]);
+        // Refetch from server to guarantee list is up to date
+        await fetchStudents();
       } else {
-        setError(data.error || "Failed to add student.");
+        setError(`Failed to add student: ${data.error || 'Unknown error from server'}`);
       }
     } catch (err) {
-      setError(err.message || "Failed to add student.");
+      setError(`Network error: ${err.message}`);
     } finally {
       setAddingSingle(false);
     }
