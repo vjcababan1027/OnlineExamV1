@@ -59,6 +59,26 @@ export default function TeacherDashboard() {
       alert("Error toggling status: " + err.message);
     }
   };
+
+  const handleDeleteExam = async (examId, title) => {
+    if (!window.confirm(`Are you sure you want to DELETE "${title}"?\n\nThis will permanently remove the exam, all its questions, student roster, and all attempt records. This action CANNOT be undone.`)) {
+      return;
+    }
+    try {
+      const data = await callApi('deleteExam', {
+        token: teacherToken,
+        examId
+      });
+      if (data.success) {
+        setExams(prev => prev.filter(e => e['Exam ID'] !== examId));
+      } else {
+        alert("Failed to delete exam: " + data.error);
+      }
+    } catch (err) {
+      alert("Error deleting exam: " + err.message);
+    }
+  };
+  
   
   const openDuplicateModal = (examId, title) => {
     setSelectedExamId(examId);
@@ -215,6 +235,19 @@ export default function TeacherDashboard() {
                       onClick={() => handleToggleStatus(examId, status)}
                     >
                       {status === 'Active' ? '🔒 Close' : '🔓 Activate'}
+                    </button>
+                    <button 
+                      className="btn" 
+                      style={{ 
+                        padding: '0.5rem 1rem', 
+                        fontSize: '0.85rem', 
+                        background: 'rgba(239, 68, 68, 0.12)',
+                        border: '1px solid rgba(239, 68, 68, 0.25)',
+                        color: 'var(--danger)'
+                      }}
+                      onClick={() => handleDeleteExam(examId, exam['Title'])}
+                    >
+                      🗑️ Delete
                     </button>
                   </div>
                 </div>

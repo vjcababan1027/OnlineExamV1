@@ -15,11 +15,30 @@ export default function QuestionImport() {
   const [apiError, setApiError] = useState('');
   const [success, setSuccess] = useState('');
 
+  // Existing questions state
+  const [existingQuestions, setExistingQuestions] = useState([]);
+  const [loadingExisting, setLoadingExisting] = useState(true);
+  const [qSearchFilter, setQSearchFilter] = useState('');
+
   useEffect(() => {
     if (!teacherToken) {
       navigate('/teacher/login');
+      return;
     }
+    fetchExistingQuestions();
   }, [teacherToken]);
+
+  const fetchExistingQuestions = async () => {
+    setLoadingExisting(true);
+    try {
+      const data = await callApi('getQuestions', { token: teacherToken, examId });
+      if (data.success) setExistingQuestions(data.questions || []);
+    } catch (err) {
+      console.error('Could not load questions:', err);
+    } finally {
+      setLoadingExisting(false);
+    }
+  };
 
   // Client-side delimiter parser
   useEffect(() => {
@@ -126,6 +145,7 @@ export default function QuestionImport() {
       if (data.success) {
         setSuccess(`Question bank updated! Imported ${data.count} questions successfully.`);
         setRawText('');
+        fetchExistingQuestions();
       } else {
         setApiError(data.error || "Failed to upload questions.");
       }
@@ -285,6 +305,97 @@ export default function QuestionImport() {
             </button>
           </div>
         </form>
+
+        {/* Existing Questions Table */}
+        <div style={{ marginTop: '2.5rem' }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '1rem', marginBottom: '1rem' }}>
+            <h3 style={{ fontSize: '1.2rem' }}>
+              Current Question Bank ({existingQuestions.length})
+            </h3>
+            <input
+              type="text"
+              className="form-control"
+              style={{ maxWidth: '250px', fontSize: '0.85rem', padding: '0.4rem 0.8rem' }}
+              placeholder="🔍 Search questions..."
+              value={qSearchFilter}
+              onChange={(e) => setQSearchFilter(e.target.value)}
+            />
+          </div>
+
+          {loadingExisting ? (
+            <div style={{ textAlign: 'center', padding: '2rem 0' }}>
+              <span style={{ fontSize: '1.8rem' }}>🔄</span>
+              <p style={{ color: 'var(--text-secondary)', marginTop: '0.5rem', fontSize: '0.85rem' }}>Loading question bank...</p>
+            </div>
+          ) : existingQuestions.length === 0 ? (
+            <div style={{
+              textAlign: 'center', padding: '2.5rem 1rem',
+              background: 'rgba(255,255,255,0.02)',
+              border: '1px dashed var(--border-color)',
+              borderRadius: 'var(--radius-sm)'
+            }}>
+              <span style={{ fontSize: '2.5rem', display: 'block', marginBottom: '0.5rem' }}>❓</span>
+              <p style={{ color: 'var(--text-secondary)', fontSize: '0.9rem' }}>No questions uploaded yet. Use the import form above.</p>
+            </div>
+          ) : (
+            <div style={{ border: '1px solid var(--border-color)', borderRadius: 'var(--radius-sm)', overflowX: 'auto' }}>
+              <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.82rem' }}>
+                <thead>
+                  <tr style={{ background: 'rgba(255,255,255,0.03)', borderBottom: '1px solid var(--border-color)' }}>
+                    <th style={{ padding: '0.6rem 0.75rem', textAlign: 'left', color: 'var(--text-secondary)', width: '40px' }}>#</th>
+                    <th style={{ padding: '0.6rem 0.75rem', textAlign: 'left', color: 'var(--text-secondary)', width: '110px' }}>Type</th>
+                    <th style={{ padding: '0.6rem 0.75rem', textAlign: 'left', color: 'var(--text-secondary)' }}>Question</th>
+                    <th style={{ padding: '0.6rem 0.75rem', textAlign: 'left', color: 'var(--text-secondary)', width: '60px' }}>Key</th>
+                    <th style={{ padding: '0.6rem 0.75rem', textAlign: 'left', color: 'var(--text-secondary)', width: '60px' }}>Pts</th>
+                    <th style={{ padding: '0.6rem 0.75rem', textAlign: 'center', color: 'var(--text-secondary)', width: '70px' }}>Del</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {existingQuestions
+                    .filter(q =>
+                      !qSearchFilter ||
+                      (q.questionText || '').toLowerCase().includes(qSearchFilter.toLowerCase()) ||
+                      String(q.number).includes(qSearchFilter)
+                    )
+                    .map((q) => (
+                      <tr key={q.questionId} style={{ borderBottom: '1px solid rgba(255,255,255,0.03)' }}>
+                        <td style={{ padding: '0.6rem 0.75rem', color: 'var(--text-muted)' }}>{q.number}</td>
+                        <td style={{ padding: '0.6rem 0.75rem' }}>
+                          <span className="badge badge-active" style={{ fontSize: '0.65rem' }}>{q.type}</span>
+                        </td>
+                        <td style={{ padding: '0.6rem 0.75rem' }}>{q.questionText}</td>
+                        <td style={{ padding: '0.6rem 0.75rem', color: 'var(--accent)', fontWeight: 'bold' }}>{q.answer}</td>
+                        <td style={{ padding: '0.6rem 0.75rem' }}>{q.points}</td>
+                        <td style={{ padding: '0.6rem 0.75rem', textAlign: 'center' }}>
+                          <button
+                            className="btn btn-danger"
+                            style={{ padding: '0.25rem 0.5rem', fontSize: '0.75rem' }}
+                            title="Delete this question"
+                            onClick={async () => {
+                              if (!window.confirm(`Delete question #${q.number}?\n"${q.questionText}"\n\nThis cannot be undone.`)) return;
+                              try {
+                                const res = await callApi('deleteQuestion', { token: teacherToken, examId, questionId: q.questionId });
+                                if (res.success) {
+                                  setExistingQuestions(prev => prev.filter(x => x.questionId !== q.questionId));
+                                } else {
+                                  alert('Failed to delete: ' + res.error);
+                                }
+                              } catch (err) {
+                                alert('Error: ' + err.message);
+                              }
+                            }}
+                          >
+                            ✕
+                          </button>
+                        </td>
+                      </tr>
+                    ))
+                  }
+                </tbody>
+              </table>
+            </div>
+          )}
+        </div>
       </div>
     </div>
   );

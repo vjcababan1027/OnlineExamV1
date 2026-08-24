@@ -160,3 +160,99 @@ function handleUpdateExamStatus(body) {
     return { success: false, error: error.toString() };
   }
 }
+
+// Delete an exam and cascade delete all its questions, students, and attempt logs
+function handleDeleteExam(body) {
+  const token = body.token;
+  if (!verifyTeacherToken(token)) {
+    return { success: false, error: "Unauthorized access" };
+  }
+  
+  try {
+    const examId = body.examId;
+    if (!examId) return { success: false, error: "Missing examId" };
+    
+    // 1. Delete from Exams sheet
+    const examSheet = getOrCreateSheet("Exams");
+    const lastRowExams = examSheet.getLastRow();
+    if (lastRowExams > 1) {
+      const examValues = examSheet.getRange(2, 1, lastRowExams - 1, 1).getValues();
+      for (let i = lastRowExams; i >= 2; i--) {
+        if (examValues[i - 2][0] == examId) {
+          examSheet.deleteRow(i);
+        }
+      }
+    }
+    
+    // 2. Cascade delete from Questions
+    const qSheet = getOrCreateSheet("Questions");
+    const lastRowQ = qSheet.getLastRow();
+    if (lastRowQ > 1) {
+      const qValues = qSheet.getRange(2, 2, lastRowQ - 1, 1).getValues();
+      for (let i = lastRowQ; i >= 2; i--) {
+        if (qValues[i - 2][0] == examId) {
+          qSheet.deleteRow(i);
+        }
+      }
+    }
+    
+    // 3. Cascade delete from Students
+    const stuSheet = getOrCreateSheet("Students");
+    const lastRowStu = stuSheet.getLastRow();
+    if (lastRowStu > 1) {
+      const stuValues = stuSheet.getRange(2, 4, lastRowStu - 1, 1).getValues();
+      for (let i = lastRowStu; i >= 2; i--) {
+        if (stuValues[i - 2][0] == examId) {
+          stuSheet.deleteRow(i);
+        }
+      }
+    }
+    
+    // 4. Cascade delete from Attempts (and associated Answers & Violations)
+    const attSheet = getOrCreateSheet("Attempts");
+    const lastRowAtt = attSheet.getLastRow();
+    const deletedAttemptIds = [];
+    if (lastRowAtt > 1) {
+      const attValues = attSheet.getRange(2, 1, lastRowAtt - 1, 2).getValues();
+      for (let i = lastRowAtt; i >= 2; i--) {
+        const attemptId = attValues[i - 2][0];
+        const attExamId = attValues[i - 2][1];
+        if (attExamId == examId) {
+          deletedAttemptIds.push(attemptId);
+          attSheet.deleteRow(i);
+        }
+      }
+    }
+    
+    // 5. Cascade delete Answers
+    if (deletedAttemptIds.length > 0) {
+      const ansSheet = getOrCreateSheet("Answers");
+      const lastRowAns = ansSheet.getLastRow();
+      if (lastRowAns > 1) {
+        const ansValues = ansSheet.getRange(2, 2, lastRowAns - 1, 1).getValues();
+        for (let i = lastRowAns; i >= 2; i--) {
+          if (deletedAttemptIds.indexOf(ansValues[i - 2][0]) !== -1) {
+            ansSheet.deleteRow(i);
+          }
+        }
+      }
+      
+      // 6. Cascade delete Violations
+      const vilSheet = getOrCreateSheet("Violations");
+      const lastRowVil = vilSheet.getLastRow();
+      if (lastRowVil > 1) {
+        const vilValues = vilSheet.getRange(2, 2, lastRowVil - 1, 1).getValues();
+        for (let i = lastRowVil; i >= 2; i--) {
+          if (deletedAttemptIds.indexOf(vilValues[i - 2][0]) !== -1) {
+            vilSheet.deleteRow(i);
+          }
+        }
+      }
+    }
+    
+    return { success: true };
+  } catch (error) {
+    return { success: false, error: error.toString() };
+  }
+}
+

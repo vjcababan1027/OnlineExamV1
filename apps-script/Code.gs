@@ -19,6 +19,11 @@ function handleAction(body) {
     getExams: handleGetExams,
     createExam: handleCreateExam,
     duplicateExam: handleDuplicateExam,
+    deleteExam: handleDeleteExam,
+    
+    // Questions
+    getQuestions: handleGetQuestions,
+    deleteQuestion: handleDeleteQuestion,
     
     // Imports & Roster Management
     importStudents: handleImportStudents,
@@ -46,8 +51,10 @@ function handleAction(body) {
   }
   
   const writeActions = [
-    "createExam", "duplicateExam", "importStudents", "importQuestions",
+    "createExam", "duplicateExam", "deleteExam",
+    "importStudents", "importQuestions",
     "addStudent", "deleteStudent",
+    "deleteQuestion",
     "startAttempt", "submitAnswer", "logViolation", "finishAttempt", "updateExamStatus"
   ];
   
