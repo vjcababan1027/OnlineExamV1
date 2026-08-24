@@ -1,5 +1,5 @@
 async function test() {
-  const url = 'https://script.google.com/macros/s/AKfycbyxlhUmDe7zHSEgQfaii4Kz2LRV9tniy4uATTi5yXFiaqbN82gny2wIFu94DJxaaycz/exec';
+  const url = 'https://script.google.com/macros/s/AKfycbxkIG96iNm6vXF4cKkTQUpUmjetYCNukNpebmYYjUcZ2lGa3SmMbs385bazDXsCD2PZ7w/exec';
   const res = await fetch(url, {
     method: 'POST',
     headers: { 'Content-Type': 'text/plain;charset=utf-8' },
