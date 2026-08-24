@@ -27,6 +27,7 @@ export default function ExamRunner() {
   const [activeViolation, setActiveViolation] = useState(null);
   const [isAttemptActive, setIsAttemptActive] = useState(true);
   const [maxViolationsReached, setMaxViolationsReached] = useState(false);
+  const [syncStatus, setSyncStatus] = useState(''); // Network retry message
 
   // Redirect to login if auth is lost
   useEffect(() => {
@@ -82,8 +83,12 @@ export default function ExamRunner() {
         const data = await callApi('startAttempt', {
           examId: studentAttempt.examMeta.examId,
           studentId: studentAttempt.studentId
+        }, {
+          critical: true,
+          onRetry: (att, msg) => setSyncStatus(msg)
         });
         
+        setSyncStatus('');
         if (data.success && data.questions) {
           setQuestions(data.questions);
           const initialLimit = getQuestionTimeLimit(0, data.questions);
@@ -140,11 +145,12 @@ export default function ExamRunner() {
     }
   };
 
-  // Auto-grading / submission when limit is hit or completed
+  // Auto-grading / submission when limit is hit or completed with continuous retry
   const handleAutoSubmit = async (statusLabel = "Auto-Submitted") => {
     setIsAttemptActive(false);
     clearInterval(timerRef.current);
     setLoading(true);
+    setSyncStatus('Submitting final exam results...');
     
     try {
       // Exit fullscreen safely
@@ -152,8 +158,11 @@ export default function ExamRunner() {
         await document.exitFullscreen();
       }
       
-      // Call finishAttempt on backend
-      await callApi('finishAttempt', { attemptId });
+      // Call finishAttempt on backend with critical retry
+      await callApi('finishAttempt', { attemptId }, {
+        critical: true,
+        onRetry: (att, msg) => setSyncStatus(`Submitting final results: ${msg}`)
+      });
       
       logoutStudent();
       navigate('/student/complete');
@@ -164,7 +173,7 @@ export default function ExamRunner() {
     }
   };
 
-  // Submit Answer & Move Forward to Next Question
+  // Submit Answer & Move Forward to Next Question with continuous retry
   const handleNext = async () => {
     if (questions.length === 0) return;
     
@@ -172,15 +181,20 @@ export default function ExamRunner() {
     const answerToSubmit = currentQuestion.type === 'IDENTIFICATION' ? identificationAnswer : selectedAnswer;
     
     setLoading(true);
+    setSyncStatus('Saving answer...');
     try {
-      // Submit answer to backend
+      // Submit answer to backend with critical retry
       await callApi('submitAnswer', {
         attemptId,
         questionId: currentQuestion.questionId,
         selectedAnswer: answerToSubmit,
         timeUsed: timeSpentRef.current
+      }, {
+        critical: true,
+        onRetry: (att, msg) => setSyncStatus(`Saving answer: ${msg}`)
       });
       
+      setSyncStatus('');
       // Reset input variables for next question
       setSelectedAnswer('');
       setIdentificationAnswer('');
@@ -198,6 +212,7 @@ export default function ExamRunner() {
         handleAutoSubmit("Finished");
       }
     } catch (err) {
+      setSyncStatus('');
       alert("Failed to save answer: " + err.message);
       setLoading(false);
     }
@@ -253,6 +268,27 @@ export default function ExamRunner() {
   return (
     <div className="container" style={{ maxWidth: '850px', padding: '3rem 1.5rem' }}>
       
+      {/* Network Sync / Retry Status Banner */}
+      {syncStatus && (
+        <div style={{
+          background: 'rgba(245, 158, 11, 0.15)',
+          border: '1px solid rgba(245, 158, 11, 0.4)',
+          borderRadius: 'var(--radius-sm)',
+          padding: '0.75rem 1.25rem',
+          marginBottom: '1.5rem',
+          display: 'flex',
+          alignItems: 'center',
+          gap: '0.75rem',
+          color: '#fbbf24',
+          fontSize: '0.9rem',
+          fontWeight: 600,
+          animation: 'pulse 1.5s infinite'
+        }}>
+          <span style={{ fontSize: '1.2rem' }}>🔄</span>
+          <span>{syncStatus}</span>
+        </div>
+      )}
+
       {/* Header Info Panel */}
       <div style={{
         display: 'flex',
