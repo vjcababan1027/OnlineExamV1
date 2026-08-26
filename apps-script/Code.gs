@@ -39,9 +39,11 @@ function handleAction(body) {
     submitAnswer: handleSubmitAnswer,
     logViolation: handleLogViolation,
     finishAttempt: handleFinishAttempt,
+    resetAttempt: handleResetAttempt,
     
     // Grading & results
     getResults: handleGetResults,
+    recalculateScores: handleRecalculateScores,
     updateExamStatus: handleUpdateExamStatus
   };
   
@@ -55,7 +57,7 @@ function handleAction(body) {
     "importStudents", "importQuestions",
     "addStudent", "deleteStudent",
     "deleteQuestion",
-    "startAttempt", "submitAnswer", "logViolation", "finishAttempt", "updateExamStatus"
+    "startAttempt", "submitAnswer", "logViolation", "finishAttempt", "resetAttempt", "recalculateScores", "updateExamStatus"
   ];
   
   let result;

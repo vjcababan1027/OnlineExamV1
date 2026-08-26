@@ -183,7 +183,7 @@ export default function ExamRunner() {
   };
 
   // Core function: advance to next question (used by both Next and Skip)
-  const advanceQuestion = (answerToSubmit) => {
+  const advanceQuestion = async (answerToSubmit) => {
     const currentQuestion = questions[currentIndex];
     const timeUsed = timeSpentRef.current;
 
@@ -216,6 +216,9 @@ export default function ExamRunner() {
       setCurrentIndex(nextIndex);
       setSecondsLeft(nextLimit);
     } else {
+      try {
+        await bgSubmission;
+      } catch (err) {}
       handleAutoSubmit('Finished');
     }
   };

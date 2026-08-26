@@ -9,10 +9,12 @@ export default function StudentImport() {
   const { teacherToken } = useAuth();
   
   const [existingStudents, setExistingStudents] = useState([]);
+  const [examMeta, setExamMeta] = useState(null);
   const [loadingList, setLoadingList] = useState(true);
   
   // Single Add form
   const [singleName, setSingleName] = useState('');
+  const [singleStudentId, setSingleStudentId] = useState('');
   const [singleSection, setSingleSection] = useState('');
   const [addingSingle, setAddingSingle] = useState(false);
   
@@ -34,25 +36,34 @@ export default function StudentImport() {
       navigate('/teacher/login');
       return;
     }
-    fetchStudents();
+    fetchStudentsAndExam();
   }, [teacherToken, examId]);
 
-  const fetchStudents = async () => {
+  const fetchStudentsAndExam = async () => {
     setLoadingList(true);
     try {
-      const data = await callApi('getStudents', {
+      // 1. Fetch Students
+      const studentData = await callApi('getStudents', {
         token: teacherToken,
         examId
       });
-      if (data.success) {
-        setExistingStudents(data.students || []);
-        if (data.students && data.students.length > 0 && !singleSection) {
-          setSingleSection(data.students[0].section || '');
-          setBulkSection(data.students[0].section || '');
+      if (studentData.success) {
+        setExistingStudents(studentData.students || []);
+      }
+
+      // 2. Fetch Exams to get this exam's default section
+      const examsData = await callApi('getExams', { token: teacherToken });
+      if (examsData.success && examsData.exams) {
+        const currentExam = examsData.exams.find(e => String(e['Exam ID']).trim() === String(examId).trim());
+        if (currentExam) {
+          setExamMeta(currentExam);
+          const defaultSec = currentExam['Section'] || 'Section A';
+          setSingleSection(prev => prev || defaultSec);
+          setBulkSection(prev => prev || defaultSec);
         }
       }
     } catch (err) {
-      console.error("Failed to load students", err);
+      console.error("Failed to load students or exam info", err);
     } finally {
       setLoadingList(false);
     }
@@ -72,10 +83,12 @@ export default function StudentImport() {
     setError('');
     setSuccess('');
     
-    if (!singleName.trim() || !singleSection.trim()) {
-      setError("Please provide both Student Name and Section.");
+    if (!singleName.trim()) {
+      setError("Please provide the Student's Full Name.");
       return;
     }
+
+    const sectionToUse = singleSection.trim() || (examMeta && examMeta['Section']) || 'Section A';
 
     setAddingSingle(true);
     try {
@@ -83,14 +96,16 @@ export default function StudentImport() {
         token: teacherToken,
         examId,
         name: singleName.trim(),
-        section: singleSection.trim()
+        section: sectionToUse,
+        studentId: singleStudentId.trim() || undefined
       });
 
       if (data.success && data.student) {
-        setSuccess(`Student '${data.student.name}' added with ID: ${data.student.studentId}`);
+        setSuccess(`Student "${data.student.name}" added successfully with ID: ${data.student.studentId}`);
         setSingleName('');
+        setSingleStudentId('');
         // Refetch from server to guarantee list is up to date
-        await fetchStudents();
+        await fetchStudentsAndExam();
       } else {
         setError(`Failed to add student: ${data.error || 'Unknown error from server'}`);
       }
@@ -107,10 +122,7 @@ export default function StudentImport() {
     setError('');
     setSuccess('');
     
-    if (!bulkSection.trim()) {
-      setError("Please specify the Section for the students.");
-      return;
-    }
+    const sectionToUse = bulkSection.trim() || (examMeta && examMeta['Section']) || 'Section A';
     
     if (previewList.length === 0) {
       setError("Roster paste block is empty. Add at least one name.");
@@ -122,7 +134,7 @@ export default function StudentImport() {
       const data = await callApi('importStudents', {
         token: teacherToken,
         examId,
-        section: bulkSection.trim(),
+        section: sectionToUse,
         students: previewList
       });
       
@@ -130,7 +142,7 @@ export default function StudentImport() {
         setSuccess(`Successfully added ${data.count} new students to the roster!`);
         setRawText('');
         setBulkMode(false);
-        fetchStudents();
+        fetchStudentsAndExam();
       } else {
         setError(data.error || "Roster upload failed.");
       }
@@ -186,7 +198,7 @@ export default function StudentImport() {
           <div>
             <h2 style={{ fontSize: '1.8rem', marginBottom: '0.25rem' }}>Exam Student Roster</h2>
             <p style={{ color: 'var(--text-secondary)', fontSize: '0.9rem' }}>
-              Manage registered students and add new ones. Each student uses their generated ID to take the exam.
+              {examMeta ? `${examMeta['Title']} (${examMeta['Code']})` : 'Manage registered students'}
             </p>
           </div>
           <button 
@@ -238,7 +250,7 @@ export default function StudentImport() {
             <h3 style={{ fontSize: '1.1rem', marginBottom: '1rem', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
               <span>➕</span> Add Student to Roster
             </h3>
-            <form onSubmit={handleAddSingle} style={{ display: 'grid', gridTemplateColumns: '2fr 1fr auto', gap: '1rem', alignItems: 'flex-end' }}>
+            <form onSubmit={handleAddSingle} style={{ display: 'grid', gridTemplateColumns: '1.5fr 1fr 1fr auto', gap: '1rem', alignItems: 'flex-end' }}>
               <div className="form-group" style={{ marginBottom: 0 }}>
                 <label className="form-label" style={{ fontSize: '0.8rem' }}>Student Full Name *</label>
                 <input
@@ -247,10 +259,21 @@ export default function StudentImport() {
                   placeholder="e.g. Juan Dela Cruz"
                   value={singleName}
                   onChange={(e) => setSingleName(e.target.value)}
+                  required
                 />
               </div>
               <div className="form-group" style={{ marginBottom: 0 }}>
-                <label className="form-label" style={{ fontSize: '0.8rem' }}>Section *</label>
+                <label className="form-label" style={{ fontSize: '0.8rem' }}>Student ID (Optional)</label>
+                <input
+                  type="text"
+                  className="form-control"
+                  placeholder="Auto-generated if empty"
+                  value={singleStudentId}
+                  onChange={(e) => setSingleStudentId(e.target.value)}
+                />
+              </div>
+              <div className="form-group" style={{ marginBottom: 0 }}>
+                <label className="form-label" style={{ fontSize: '0.8rem' }}>Section</label>
                 <input
                   type="text"
                   className="form-control"
@@ -263,7 +286,7 @@ export default function StudentImport() {
                 type="submit" 
                 className="btn btn-primary"
                 style={{ height: '42px', minWidth: '120px', background: 'linear-gradient(135deg, var(--accent) 0%, #0d9488 100%)' }}
-                disabled={addingSingle || !singleName.trim() || !singleSection.trim()}
+                disabled={addingSingle || !singleName.trim()}
               >
                 {addingSingle ? 'Adding...' : '+ Add Student'}
               </button>
@@ -281,26 +304,25 @@ export default function StudentImport() {
               <span>📋</span> Bulk Import Roster Names
             </h3>
             <p style={{ fontSize: '0.85rem', color: 'var(--text-secondary)', marginBottom: '1rem' }}>
-              Paste one full name per line to append multiple students at once.
+              Paste one student per line. Supported formats: <code>Name</code> or <code>ID, Name</code> or <code>ID | Name</code>.
             </p>
             <form onSubmit={handleBulkSubmit}>
               <div className="form-group">
-                <label className="form-label" style={{ fontSize: '0.85rem' }}>Section Code (e.g. Section A)</label>
+                <label className="form-label" style={{ fontSize: '0.85rem' }}>Default Section</label>
                 <input
                   type="text"
                   className="form-control"
                   placeholder="e.g. Section A"
                   value={bulkSection}
                   onChange={(e) => setBulkSection(e.target.value)}
-                  required
                 />
               </div>
               <div className="form-group">
-                <label className="form-label" style={{ fontSize: '0.85rem' }}>Paste Names (One name per line)</label>
+                <label className="form-label" style={{ fontSize: '0.85rem' }}>Paste Names / Rows</label>
                 <textarea
                   className="form-control"
                   style={{ minHeight: '140px', fontFamily: 'monospace', fontSize: '0.85rem' }}
-                  placeholder="Alice Vance&#10;Bob Smith&#10;Charlie Brown"
+                  placeholder="Alice Vance&#10;Bob Smith&#10;STU-2024, Charlie Brown"
                   value={rawText}
                   onChange={(e) => setRawText(e.target.value)}
                   required
@@ -377,7 +399,7 @@ export default function StudentImport() {
                     <tr key={stu.studentId} style={{ borderBottom: '1px solid rgba(255,255,255,0.03)' }}>
                       <td style={{ padding: '0.75rem 1rem', color: 'var(--text-muted)' }}>{index + 1}</td>
                       <td style={{ padding: '0.75rem 1rem' }}>
-                        <code style={{ background: 'rgba(99, 102, 241, 0.1)', color: 'var(--primary)', padding: '0.2rem 0.4rem', borderRadius: '4px' }}>
+                        <code style={{ background: 'rgba(99, 102, 241, 0.1)', color: 'var(--primary)', padding: '0.2rem 0.4rem', borderRadius: '4px', fontWeight: 600 }}>
                           {stu.studentId}
                         </code>
                       </td>
@@ -404,4 +426,3 @@ export default function StudentImport() {
     </div>
   );
 }
-

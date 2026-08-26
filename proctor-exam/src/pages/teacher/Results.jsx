@@ -11,6 +11,8 @@ export default function Results() {
   const [resultsData, setResultsData] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
+  const [actionMessage, setActionMessage] = useState('');
+  const [actionLoading, setActionLoading] = useState(false);
   
   // Selected Student Drilldown Modal State
   const [selectedStudent, setSelectedStudent] = useState(null);
@@ -43,6 +45,63 @@ export default function Results() {
     }
     fetchResults();
   }, [teacherToken, examId]);
+
+  // Handle Reset Attempt (Allow Student to Retake)
+  const handleResetAttempt = async (studentId, studentName, attemptId) => {
+    const confirmed = window.confirm(
+      `Are you sure you want to RESET the attempt for "${studentName}" (${studentId})?\n\n` +
+      `This will clear their previous score, answers, and violation logs so they can take the exam again from scratch.`
+    );
+    if (!confirmed) return;
+
+    setActionLoading(true);
+    try {
+      const data = await callApi('resetAttempt', {
+        token: teacherToken,
+        examId,
+        studentId,
+        attemptId
+      });
+
+      if (data.success) {
+        setActionMessage(`Attempt for "${studentName}" has been reset. They can now retake the exam.`);
+        if (studentDetailsModalOpen) {
+          setStudentDetailsModalOpen(false);
+        }
+        await fetchResults();
+        setTimeout(() => setActionMessage(''), 5000);
+      } else {
+        alert("Failed to reset attempt: " + (data.error || "Unknown error"));
+      }
+    } catch (err) {
+      alert("Error resetting attempt: " + err.message);
+    } finally {
+      setActionLoading(false);
+    }
+  };
+
+  // Handle Recalculate and Re-sync All Scores
+  const handleRecalculate = async () => {
+    setActionLoading(true);
+    try {
+      const data = await callApi('recalculateScores', {
+        token: teacherToken,
+        examId
+      });
+
+      if (data.success) {
+        setActionMessage(`Recalculated scores for ${data.updatedCount || 0} attempts successfully!`);
+        await fetchResults();
+        setTimeout(() => setActionMessage(''), 4000);
+      } else {
+        alert("Recalculate failed: " + (data.error || "Unknown error"));
+      }
+    } catch (err) {
+      alert("Error recalculating scores: " + err.message);
+    } finally {
+      setActionLoading(false);
+    }
+  };
 
   // Client-Side CSV Exporter
   const handleExportCSV = () => {
@@ -169,6 +228,8 @@ export default function Results() {
         display: 'flex',
         justifyContent: 'space-between',
         alignItems: 'center',
+        flexWrap: 'wrap',
+        gap: '1rem',
         borderBottom: '1px solid var(--border-color)',
         paddingBottom: '1.5rem',
         marginBottom: '2.5rem'
@@ -184,11 +245,38 @@ export default function Results() {
           <h1 className="text-gradient" style={{ fontSize: '1.8rem' }}>Examination Results</h1>
           <p style={{ color: 'var(--text-secondary)', fontSize: '0.85rem' }}>Detailed student scoring matrix and proctoring log logs.</p>
         </div>
-        <div style={{ display: 'flex', gap: '0.75rem' }}>
+        <div style={{ display: 'flex', gap: '0.75rem', flexWrap: 'wrap' }}>
+          <button 
+            className="btn btn-secondary" 
+            onClick={handleRecalculate}
+            disabled={actionLoading}
+            title="Recalculate all student scores against current question answer keys"
+          >
+            🔄 Recalculate Scores
+          </button>
           <button className="btn btn-secondary" onClick={handlePrint}>🖨️ Print View</button>
           <button className="btn btn-primary" style={{ background: 'linear-gradient(135deg, var(--accent) 0%, #0d9488 100%)' }} onClick={handleExportCSV}>💾 Export CSV</button>
         </div>
       </header>
+
+      {/* Success / Action Notification */}
+      {actionMessage && (
+        <div className="no-print" style={{
+          background: 'rgba(16, 185, 129, 0.15)',
+          border: '1px solid rgba(16, 185, 129, 0.4)',
+          borderRadius: 'var(--radius-sm)',
+          padding: '0.85rem 1.25rem',
+          marginBottom: '1.5rem',
+          color: 'var(--success)',
+          fontWeight: 600,
+          display: 'flex',
+          alignItems: 'center',
+          gap: '0.5rem',
+          animation: 'fadeIn 0.3s ease'
+        }}>
+          <span>✅</span> {actionMessage}
+        </div>
+      )}
 
       {/* Summary Row */}
       <div className="form-row" style={{ gridTemplateColumns: 'repeat(auto-fit, minmax(160px, 1fr))', marginBottom: '2.5rem', gap: '1.25rem' }}>
@@ -220,7 +308,7 @@ export default function Results() {
       <div className="glass-card" style={{ padding: '1.5rem', overflowX: 'auto' }}>
         <h2 style={{ fontSize: '1.3rem', marginBottom: '1.25rem' }}>Grades & Audits</h2>
         
-        <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.9rem', minWidth: '700px' }}>
+        <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.9rem', minWidth: '750px' }}>
           <thead>
             <tr style={{ borderBottom: '2px solid var(--border-color)', textAlign: 'left' }}>
               <th style={{ padding: '0.75rem 1rem', color: 'var(--text-secondary)' }}>Student Name</th>
@@ -231,7 +319,7 @@ export default function Results() {
               <th style={{ padding: '0.75rem 1rem', color: 'var(--text-secondary)', textAlign: 'right' }}>Raw Score</th>
               <th style={{ padding: '0.75rem 1rem', color: 'var(--text-secondary)', textAlign: 'right' }}>Deductions</th>
               <th style={{ padding: '0.75rem 1rem', color: 'var(--text-secondary)', textAlign: 'right' }}>Final Score</th>
-              <th className="no-print" style={{ padding: '0.75rem 1rem', color: 'var(--text-secondary)' }}>Actions</th>
+              <th className="no-print" style={{ padding: '0.75rem 1rem', color: 'var(--text-secondary)', textAlign: 'center' }}>Actions</th>
             </tr>
           </thead>
           <tbody>
@@ -267,15 +355,35 @@ export default function Results() {
                 <td style={{ padding: '0.85rem 1rem', textAlign: 'right', fontWeight: 'bold', fontSize: '1rem', color: row.finalScore !== null ? 'var(--accent)' : undefined }}>
                   {row.finalScore !== null ? `${row.finalScore} / ${summary.totalPossiblePoints}` : '-'}
                 </td>
-                <td className="no-print" style={{ padding: '0.85rem 1rem' }}>
-                  <button 
-                    className="btn btn-secondary" 
-                    style={{ padding: '0.3rem 0.6rem', fontSize: '0.75rem' }}
-                    onClick={() => openStudentDetails(row)}
-                    disabled={row.status === 'Not Started'}
-                  >
-                    🔍 Inspect Logs
-                  </button>
+                <td className="no-print" style={{ padding: '0.85rem 1rem', textAlign: 'center' }}>
+                  <div style={{ display: 'flex', gap: '0.4rem', justifyContent: 'center', flexWrap: 'wrap' }}>
+                    <button 
+                      className="btn btn-secondary" 
+                      style={{ padding: '0.3rem 0.6rem', fontSize: '0.75rem' }}
+                      onClick={() => openStudentDetails(row)}
+                      disabled={row.status === 'Not Started'}
+                    >
+                      🔍 Inspect Logs
+                    </button>
+                    {row.status !== 'Not Started' && (
+                      <button 
+                        className="btn" 
+                        style={{ 
+                          padding: '0.3rem 0.6rem', 
+                          fontSize: '0.75rem',
+                          background: 'rgba(239, 68, 68, 0.15)',
+                          border: '1px solid rgba(239, 68, 68, 0.35)',
+                          color: 'var(--danger)',
+                          fontWeight: 600
+                        }}
+                        title="Reset attempt so student can retake the exam"
+                        onClick={() => handleResetAttempt(row.studentId, row.studentName, row.attemptId)}
+                        disabled={actionLoading}
+                      >
+                        🔄 Reset
+                      </button>
+                    )}
+                  </div>
                 </td>
               </tr>
             ))}
@@ -313,7 +421,17 @@ export default function Results() {
                 <h3 style={{ fontSize: '1.5rem' }}>{selectedStudent.studentName}</h3>
                 <p style={{ color: 'var(--text-secondary)', fontSize: '0.85rem' }}>ID: {selectedStudent.studentId} | Section: {selectedStudent.section}</p>
               </div>
-              <button className="btn btn-secondary" onClick={() => setStudentDetailsModalOpen(false)}>✕ Close</button>
+              <div style={{ display: 'flex', gap: '0.5rem' }}>
+                <button 
+                  className="btn btn-danger" 
+                  style={{ fontSize: '0.8rem', padding: '0.4rem 0.8rem' }}
+                  onClick={() => handleResetAttempt(selectedStudent.studentId, selectedStudent.studentName, selectedStudent.attemptId)}
+                  disabled={actionLoading}
+                >
+                  🔄 Reset Attempt &amp; Allow Retake
+                </button>
+                <button className="btn btn-secondary" onClick={() => setStudentDetailsModalOpen(false)}>✕ Close</button>
+              </div>
             </div>
 
             {/* Sub-row statistics */}

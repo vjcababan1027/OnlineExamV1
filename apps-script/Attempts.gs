@@ -368,3 +368,81 @@ function handleGetExamRoster(body) {
     return { success: false, error: error.toString() };
   }
 }
+
+// Reset a student's attempt so they can retake the exam
+function handleResetAttempt(body) {
+  const token = body.token;
+  if (!verifyTeacherToken(token)) {
+    return { success: false, error: "Unauthorized access" };
+  }
+  
+  try {
+    const { examId, studentId, attemptId } = body;
+    if (!examId || (!studentId && !attemptId)) {
+      return { success: false, error: "Missing examId or studentId/attemptId" };
+    }
+    
+    // Find matching attempt
+    const attempts = getRowsAsObjects("Attempts");
+    let targetAttempts = [];
+    if (attemptId) {
+      targetAttempts = attempts.filter(a => String(a["Attempt ID"]).trim() === String(attemptId).trim());
+    } else {
+      targetAttempts = attempts.filter(a => 
+        String(a["Exam ID"]).trim() === String(examId).trim() && 
+        String(a["Student ID"]).trim() === String(studentId).trim()
+      );
+    }
+    
+    const targetAttemptIds = targetAttempts.map(a => String(a["Attempt ID"]).trim());
+    
+    // 1. Delete rows from Attempts sheet
+    const attemptsSheet = getOrCreateSheet("Attempts");
+    const lastRowAtt = attemptsSheet.getLastRow();
+    if (lastRowAtt > 1) {
+      const attValues = attemptsSheet.getRange(2, 1, lastRowAtt - 1, 3).getValues(); // col 1: Attempt ID, col 2: Exam ID, col 3: Student ID
+      for (let i = lastRowAtt; i >= 2; i--) {
+        const rowAttId = String(attValues[i - 2][0]).trim();
+        const rowExamId = String(attValues[i - 2][1]).trim();
+        const rowStuId = String(attValues[i - 2][2]).trim();
+        
+        if (targetAttemptIds.includes(rowAttId) || (studentId && rowExamId === String(examId).trim() && rowStuId === String(studentId).trim())) {
+          attemptsSheet.deleteRow(i);
+        }
+      }
+    }
+    
+    // 2. Delete rows from Answers sheet
+    if (targetAttemptIds.length > 0) {
+      const answersSheet = getOrCreateSheet("Answers");
+      const lastRowAns = answersSheet.getLastRow();
+      if (lastRowAns > 1) {
+        const ansValues = answersSheet.getRange(2, 2, lastRowAns - 1, 1).getValues(); // col 2: Attempt ID
+        for (let i = lastRowAns; i >= 2; i--) {
+          const rowAttId = String(ansValues[i - 2][0]).trim();
+          if (targetAttemptIds.includes(rowAttId)) {
+            answersSheet.deleteRow(i);
+          }
+        }
+      }
+      
+      // 3. Delete rows from Violations sheet
+      const violationsSheet = getOrCreateSheet("Violations");
+      const lastRowVil = violationsSheet.getLastRow();
+      if (lastRowVil > 1) {
+        const vilValues = violationsSheet.getRange(2, 2, lastRowVil - 1, 1).getValues(); // col 2: Attempt ID
+        for (let i = lastRowVil; i >= 2; i--) {
+          const rowAttId = String(vilValues[i - 2][0]).trim();
+          if (targetAttemptIds.includes(rowAttId)) {
+            violationsSheet.deleteRow(i);
+          }
+        }
+      }
+    }
+    
+    return { success: true, message: "Student attempt has been reset. The student can now take the exam again." };
+  } catch (error) {
+    return { success: false, error: error.toString() };
+  }
+}
+
