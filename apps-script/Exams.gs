@@ -70,30 +70,32 @@ function handleDuplicateExam(body) {
   }
   
   try {
-    const { examId, newSection, newCode } = body;
+    const { examId, newTitle, newSection, newCode } = body;
     if (!examId || !newSection || !newCode) {
       return { success: false, error: "Missing examId, newSection, or newCode" };
     }
     
     // Check if newCode is already in use
     const exams = getRowsAsObjects("Exams");
-    const codeMatch = exams.find(e => e["Code"] === newCode);
+    const formattedCode = String(newCode).trim().toUpperCase();
+    const codeMatch = exams.find(e => String(e["Code"]).trim().toUpperCase() === formattedCode);
     if (codeMatch) {
-      return { success: false, error: "New Exam Code '" + newCode + "' is already in use." };
+      return { success: false, error: "New Exam Code '" + formattedCode + "' is already in use." };
     }
     
     // Find source exam
-    const sourceExam = exams.find(e => e["Exam ID"] === examId);
+    const sourceExam = exams.find(e => String(e["Exam ID"]).trim() === String(examId).trim());
     if (!sourceExam) {
       return { success: false, error: "Source exam not found" };
     }
     
+    const finalTitle = newTitle && String(newTitle).trim() ? String(newTitle).trim() : (sourceExam["Title"] + " (Copy)");
     const newExamId = generateUUID();
     const newExamRow = {
       "Exam ID": newExamId,
-      "Title": sourceExam["Title"] + " (Copy)",
-      "Code": newCode,
-      "Section": newSection,
+      "Title": finalTitle,
+      "Code": formattedCode,
+      "Section": String(newSection).trim(),
       "Duration (Mins)": sourceExam["Duration (Mins)"],
       "Start Time": sourceExam["Start Time"],
       "End Time": sourceExam["End Time"],
@@ -111,7 +113,7 @@ function handleDuplicateExam(body) {
     
     // 2. Fetch and duplicate questions
     const allQuestions = getRowsAsObjects("Questions");
-    const sourceQuestions = allQuestions.filter(q => q["Exam ID"] === examId);
+    const sourceQuestions = allQuestions.filter(q => String(q["Exam ID"]).trim() === String(examId).trim());
     
     sourceQuestions.forEach(q => {
       const newQuestionRow = {

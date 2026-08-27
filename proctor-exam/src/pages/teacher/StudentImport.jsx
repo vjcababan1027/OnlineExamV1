@@ -303,8 +303,8 @@ export default function StudentImport() {
             <h3 style={{ fontSize: '1.1rem', marginBottom: '0.5rem', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
               <span>📋</span> Bulk Import Roster Names
             </h3>
-            <p style={{ fontSize: '0.85rem', color: 'var(--text-secondary)', marginBottom: '1rem' }}>
-              Paste one student per line. Supported formats: <code>Name</code> or <code>ID, Name</code> or <code>ID | Name</code>.
+            <p style={{ fontSize: '0.85rem', color: 'var(--text-secondary)', marginBottom: '1rem', lineHeight: '1.5' }}>
+              Paste one student per line. Supported formats: <code>Full Name</code> (e.g. <em>Juan Dela Cruz</em> or <em>Dela Cruz, Juan</em>) or with ID like <code>2024-001, Juan Dela Cruz</code> or <code>ID | Name | Section</code>. IDs will be auto-generated if omitted.
             </p>
             <form onSubmit={handleBulkSubmit}>
               <div className="form-group">
@@ -318,11 +318,11 @@ export default function StudentImport() {
                 />
               </div>
               <div className="form-group">
-                <label className="form-label" style={{ fontSize: '0.85rem' }}>Paste Names / Rows</label>
+                <label className="form-label" style={{ fontSize: '0.85rem' }}>Paste Names / Rows ({previewList.length} detected)</label>
                 <textarea
                   className="form-control"
                   style={{ minHeight: '140px', fontFamily: 'monospace', fontSize: '0.85rem' }}
-                  placeholder="Alice Vance&#10;Bob Smith&#10;STU-2024, Charlie Brown"
+                  placeholder={"Juan Dela Cruz\nDela Cruz, Maria\n2024-001, Carlos Garcia\nSTU-555 | Sarah Connor | Section A"}
                   value={rawText}
                   onChange={(e) => setRawText(e.target.value)}
                   required
@@ -337,7 +337,7 @@ export default function StudentImport() {
                   style={{ background: 'linear-gradient(135deg, var(--accent) 0%, #0d9488 100%)' }}
                   disabled={loadingBulk || previewList.length === 0}
                 >
-                  {loadingBulk ? "Adding..." : `Import ${previewList.length} Students`}
+                  {loadingBulk ? "Importing..." : `Import ${previewList.length} Students`}
                 </button>
               </div>
             </form>

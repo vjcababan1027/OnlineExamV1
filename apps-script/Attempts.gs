@@ -12,7 +12,7 @@ function handleStudentVerify(body) {
     
     // 1. Find exam
     const exams = getRowsAsObjects("Exams");
-    const exam = exams.find(e => e["Code"] === examCode.trim());
+    const exam = exams.find(e => String(e["Code"]).trim().toUpperCase() === String(examCode).trim().toUpperCase());
     
     if (!exam) {
       return { ok: false, error: "Exam not found." };
@@ -39,7 +39,10 @@ function handleStudentVerify(body) {
     
     // 2. Verify student is on roster
     const students = getRowsAsObjects("Students");
-    const student = students.find(s => s["Student ID"] === studentId.trim() && s["Exam ID"] === exam["Exam ID"]);
+    const student = students.find(s => 
+      String(s["Student ID"]).trim().toUpperCase() === String(studentId).trim().toUpperCase() && 
+      String(s["Exam ID"]).trim() === String(exam["Exam ID"]).trim()
+    );
     
     if (!student) {
       return { ok: false, error: "Student ID is not registered for this exam." };
@@ -47,7 +50,10 @@ function handleStudentVerify(body) {
     
     // 3. Check for existing attempts
     const attempts = getRowsAsObjects("Attempts");
-    const studentAttempt = attempts.find(a => a["Student ID"] === student["Student ID"] && a["Exam ID"] === exam["Exam ID"]);
+    const studentAttempt = attempts.find(a => 
+      String(a["Student ID"]).trim().toUpperCase() === String(student["Student ID"]).trim().toUpperCase() && 
+      String(a["Exam ID"]).trim() === String(exam["Exam ID"]).trim()
+    );
     
     if (studentAttempt) {
       if (studentAttempt["Status"] === "Finished" || studentAttempt["Status"] === "Auto-Submitted") {
@@ -334,16 +340,16 @@ function handleGetExamRoster(body) {
     }
     
     // 2. Fetch students on roster
-    const students = getRowsAsObjects("Students").filter(s => s["Exam ID"] === exam["Exam ID"]);
+    const students = getRowsAsObjects("Students").filter(s => String(s["Exam ID"]).trim() === String(exam["Exam ID"]).trim());
     
     // 3. Fetch attempts to cross-reference completion
-    const attempts = getRowsAsObjects("Attempts").filter(a => a["Exam ID"] === exam["Exam ID"]);
+    const attempts = getRowsAsObjects("Attempts").filter(a => String(a["Exam ID"]).trim() === String(exam["Exam ID"]).trim());
     
     const roster = students.map(s => {
-      const attempt = attempts.find(a => a["Student ID"] === s["Student ID"]);
+      const attempt = attempts.find(a => String(a["Student ID"]).trim().toUpperCase() === String(s["Student ID"]).trim().toUpperCase());
       return {
-        studentId: s["Student ID"],
-        name: s["Name"],
+        studentId: String(s["Student ID"]).trim(),
+        name: String(s["Name"]).trim(),
         completed: attempt ? (attempt["Status"] === "Finished" || attempt["Status"] === "Auto-Submitted") : false
       };
     });

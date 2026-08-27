@@ -13,6 +13,7 @@ export default function TeacherDashboard() {
   // Duplication Modal State
   const [duplicateModalOpen, setDuplicateModalOpen] = useState(false);
   const [selectedExamId, setSelectedExamId] = useState(null);
+  const [newTitle, setNewTitle] = useState('');
   const [newSection, setNewSection] = useState('');
   const [newCode, setNewCode] = useState('');
   const [duplicating, setDuplicating] = useState(false);
@@ -51,19 +52,20 @@ export default function TeacherDashboard() {
         status: nextStatus
       });
       if (data.success) {
-        setExams(prev => prev.map(e => e['Exam ID'] === examId ? { ...e, 'Status': nextStatus } : e));
+        setExams(prev => prev.map(e => e['Exam ID'] === examId ? { ...e, Status: nextStatus } : e));
       } else {
-        alert("Failed to toggle status: " + data.error);
+        alert("Failed to update status: " + data.error);
       }
     } catch (err) {
-      alert("Error toggling status: " + err.message);
+      alert("Error: " + err.message);
     }
   };
 
   const handleDeleteExam = async (examId, title) => {
-    if (!window.confirm(`Are you sure you want to DELETE "${title}"?\n\nThis will permanently remove the exam, all its questions, student roster, and all attempt records. This action CANNOT be undone.`)) {
+    if (!window.confirm(`Are you sure you want to permanently delete "${title}" and all related attempts and question records?`)) {
       return;
     }
+    
     try {
       const data = await callApi('deleteExam', {
         token: teacherToken,
@@ -71,17 +73,19 @@ export default function TeacherDashboard() {
       });
       if (data.success) {
         setExams(prev => prev.filter(e => e['Exam ID'] !== examId));
+        alert("Exam deleted successfully.");
       } else {
         alert("Failed to delete exam: " + data.error);
       }
     } catch (err) {
-      alert("Error deleting exam: " + err.message);
+      alert("Error: " + err.message);
     }
   };
   
   
   const openDuplicateModal = (examId, title) => {
     setSelectedExamId(examId);
+    setNewTitle(title ? `${title} (Copy)` : '');
     setNewSection('');
     setNewCode('');
     setDuplicateModalOpen(true);
@@ -89,13 +93,14 @@ export default function TeacherDashboard() {
   
   const handleDuplicate = async (e) => {
     e.preventDefault();
-    if (!newSection.trim() || !newCode.trim()) return;
+    if (!newTitle.trim() || !newSection.trim() || !newCode.trim()) return;
     
     setDuplicating(true);
     try {
       const data = await callApi('duplicateExam', {
         token: teacherToken,
         examId: selectedExamId,
+        newTitle: newTitle.trim(),
         newSection: newSection.trim(),
         newCode: newCode.trim().toUpperCase()
       });
@@ -279,6 +284,17 @@ export default function TeacherDashboard() {
             </p>
             
             <form onSubmit={handleDuplicate}>
+              <div className="form-group">
+                <label className="form-label">Exam Title / Name</label>
+                <input
+                  type="text"
+                  className="form-control"
+                  value={newTitle}
+                  onChange={(e) => setNewTitle(e.target.value)}
+                  placeholder="e.g. Midterm Examination - Calculus (Copy)"
+                  required
+                />
+              </div>
               <div className="form-group">
                 <label className="form-label">New Section (e.g. Section B)</label>
                 <input

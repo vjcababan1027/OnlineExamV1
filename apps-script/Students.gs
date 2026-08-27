@@ -2,6 +2,20 @@
  * Student Roster Management Backend Logic
  */
 
+// Helper to test if a string looks like a student ID rather than a surname/name
+function isLikelyStudentId(str) {
+  if (!str) return false;
+  const s = String(str).trim();
+  if (s.length === 0 || s.length > 25) return false;
+  // If it starts with common ID prefixes
+  if (/^(STU|ID|S|STD|STUDENT)[-_#]?\d+/i.test(s)) return true;
+  // If it has at least one number and no spaces (e.g., 2024-001, 102938, CS-2024-12)
+  if (/\d/.test(s) && !/\s/.test(s)) return true;
+  // If it is purely alphanumeric with no spaces and contains numbers or dashes
+  if (/^[A-Z0-9_-]+$/i.test(s) && (/\d/.test(s) || s.includes('-') || s.includes('_'))) return true;
+  return false;
+}
+
 // Get all students for a specific exam
 function handleGetStudents(body) {
   const token = body.token;
@@ -19,10 +33,10 @@ function handleGetStudents(body) {
     return {
       success: true,
       students: examStudents.map(s => ({
-        studentId: s["Student ID"],
-        name: s["Name"],
-        section: s["Section"],
-        examId: s["Exam ID"]
+        studentId: String(s["Student ID"] !== undefined ? s["Student ID"] : "").trim(),
+        name: String(s["Name"] !== undefined ? s["Name"] : "").trim(),
+        section: String(s["Section"] !== undefined ? s["Section"] : "").trim(),
+        examId: String(s["Exam ID"] !== undefined ? s["Exam ID"] : "").trim()
       }))
     };
   } catch (error) {
@@ -72,30 +86,50 @@ function handleImportStudents(body) {
       
       // Parse formats:
       // 1. Object: { studentId, name, section }
-      // 2. Delimited string: "ID, Name" or "ID | Name" or "ID \t Name" or just "Name"
+      // 2. Delimited string: "ID | Name | Section" or "ID \t Name" or "ID, Name" or "Lastname, Firstname" or just "Name"
       if (typeof studentEntry === 'object' && studentEntry.name) {
         studentName = String(studentEntry.name).trim();
         studentId = studentEntry.studentId ? String(studentEntry.studentId).trim() : "";
         stuSection = studentEntry.section ? String(studentEntry.section).trim() : defaultSection;
       } else {
-        const delimiters = ['|', '\t', ','];
-        let matchedDelim = null;
-        for (let d of delimiters) {
-          if (rawLine.includes(d)) {
-            matchedDelim = d;
-            break;
-          }
-        }
-        
-        if (matchedDelim) {
-          const parts = rawLine.split(matchedDelim).map(p => p.trim()).filter(p => p.length > 0);
+        // Check for tab or pipe delimiter first
+        if (rawLine.includes('|') || rawLine.includes('\t')) {
+          const delim = rawLine.includes('|') ? '|' : '\t';
+          const parts = rawLine.split(delim).map(p => p.trim()).filter(p => p.length > 0);
           if (parts.length >= 2) {
-            // Check if first part looks like an ID (e.g. STU-xxx, 2024-xxx, numbers)
             studentId = parts[0];
             studentName = parts[1];
             if (parts.length >= 3) stuSection = parts[2];
           } else {
             studentName = parts[0] || rawLine;
+          }
+        } else if (rawLine.includes(',')) {
+          // Comma separation could be:
+          // 1. "ID, Name, Section"
+          // 2. "ID, Name"
+          // 3. "Lastname, Firstname"
+          const parts = rawLine.split(',').map(p => p.trim()).filter(p => p.length > 0);
+          if (parts.length >= 3) {
+            // E.g. "STU-101, Juan Dela Cruz, Section A"
+            studentId = parts[0];
+            studentName = parts[1];
+            stuSection = parts[2];
+          } else if (parts.length === 2) {
+            if (isLikelyStudentId(parts[0])) {
+              // E.g. "2024-001, Juan Dela Cruz"
+              studentId = parts[0];
+              studentName = parts[1];
+            } else if (isLikelyStudentId(parts[1])) {
+              // E.g. "Juan Dela Cruz, 2024-001"
+              studentName = parts[0];
+              studentId = parts[1];
+            } else {
+              // E.g. "Dela Cruz, Juan" -> format as full name
+              studentName = rawLine; // Keeps "Dela Cruz, Juan"
+              studentId = ""; // Auto-generate ID
+            }
+          } else {
+            studentName = rawLine;
           }
         } else {
           studentName = rawLine;
@@ -117,10 +151,10 @@ function handleImportStudents(body) {
       existingIds.add(studentId.toUpperCase());
       
       const newStudentRow = {
-        "Student ID": studentId,
-        "Name": studentName,
-        "Section": stuSection,
-        "Exam ID": examId
+        "Student ID": String(studentId).trim(),
+        "Name": String(studentName).trim(),
+        "Section": String(stuSection).trim(),
+        "Exam ID": String(examId).trim()
       };
       
       insertRow("Students", newStudentRow);
@@ -158,13 +192,20 @@ function handleAddStudent(body) {
     }
     if (!studentSection) studentSection = "Default";
     
-    // Check existing student IDs to prevent duplicates
+    // Check existing student IDs
     const allStudents = getRowsAsObjects("Students");
     const existingForExam = allStudents.filter(s => String(s["Exam ID"]).trim() === String(examId).trim());
     const existingIds = new Set(existingForExam.map(s => String(s["Student ID"]).trim().toUpperCase()));
     
     let finalStudentId = customStudentId ? String(customStudentId).trim() : "";
-    if (!finalStudentId || existingIds.has(finalStudentId.toUpperCase())) {
+    if (finalStudentId && existingIds.has(finalStudentId.toUpperCase())) {
+      return { 
+        success: false, 
+        error: "Student ID '" + finalStudentId + "' is already enrolled in this exam roster. Please use a unique ID." 
+      };
+    }
+
+    if (!finalStudentId) {
       let uniqueId = "";
       do {
         const randomNum = Math.floor(10000 + Math.random() * 90000);
@@ -174,10 +215,10 @@ function handleAddStudent(body) {
     }
     
     const newStudentRow = {
-      "Student ID": finalStudentId,
+      "Student ID": String(finalStudentId).trim(),
       "Name": String(name).trim(),
-      "Section": studentSection,
-      "Exam ID": examId
+      "Section": String(studentSection).trim(),
+      "Exam ID": String(examId).trim()
     };
     
     insertRow("Students", newStudentRow);
@@ -187,7 +228,7 @@ function handleAddStudent(body) {
         studentId: finalStudentId,
         name: String(name).trim(),
         section: studentSection,
-        examId: examId
+        examId: String(examId).trim()
       }
     };
   } catch (error) {
@@ -214,9 +255,9 @@ function handleDeleteStudent(body) {
     
     const values = sheet.getRange(2, 1, lastRow - 1, 4).getValues();
     for (let i = lastRow; i >= 2; i--) {
-      const rowStuId = String(values[i - 2][0]).trim();
+      const rowStuId = String(values[i - 2][0]).trim().toUpperCase();
       const rowExamId = String(values[i - 2][3]).trim();
-      if (rowStuId === String(studentId).trim() && rowExamId === String(examId).trim()) {
+      if (rowStuId === String(studentId).trim().toUpperCase() && rowExamId === String(examId).trim()) {
         sheet.deleteRow(i);
         return { success: true };
       }
