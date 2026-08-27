@@ -90,6 +90,10 @@ function handleImportStudents(body) {
       let rawLine = String(studentEntry).trim();
       if (!rawLine) return;
       
+      // Strip leading list numbering like "1. ", "1) ", "[1] ", "• ", "- "
+      rawLine = rawLine.replace(/^\s*(?:\d+[\.\)\-:]|\[\d+\]|[•\-\*])\s*/, '').trim();
+      if (!rawLine) return;
+      
       let studentId = "";
       let studentName = "";
       let stuSection = defaultSection;

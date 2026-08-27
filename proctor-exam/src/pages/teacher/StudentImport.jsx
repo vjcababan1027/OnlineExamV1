@@ -298,11 +298,28 @@ export default function StudentImport() {
               fontSize: '0.9rem',
               marginBottom: '1.5rem',
               display: 'flex',
+              justifyContent: 'space-between',
               alignItems: 'center',
-              gap: '0.5rem'
+              flexWrap: 'wrap',
+              gap: '0.75rem'
             }}>
-              <span>⚠️</span>
-              <span>{error}</span>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                <span>⚠️</span>
+                <span>{error}</span>
+              </div>
+              {error.toLowerCase().includes('unauthorized') && (
+                <button 
+                  type="button" 
+                  className="btn btn-primary"
+                  style={{ padding: '0.35rem 0.75rem', fontSize: '0.8rem' }}
+                  onClick={() => {
+                    sessionStorage.removeItem('PROCTOR_TEACHER_TOKEN');
+                    navigate('/teacher/login');
+                  }}
+                >
+                  🔑 Re-login with Passcode
+                </button>
+              )}
             </div>
           )}
           
