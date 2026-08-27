@@ -171,10 +171,14 @@ function handleImportStudents(body) {
         "Exam ID": String(examId).trim()
       };
       
-      insertRow("Students", newStudentRow);
       addedStudents.push(newStudentRow);
       importCount++;
     });
+    
+    // High-speed batch insert all records in one spreadsheet call
+    if (addedStudents.length > 0) {
+      insertRowsBatch("Students", addedStudents);
+    }
     
     return { success: true, count: importCount, students: addedStudents };
   } catch (error) {

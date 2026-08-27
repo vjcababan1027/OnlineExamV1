@@ -105,7 +105,7 @@ function getRowsAsObjects(sheetName) {
   });
 }
 
-// Insert a row object matching headers
+// Insert a single row object matching headers
 function insertRow(sheetName, dataObj) {
   const sheet = getOrCreateSheet(sheetName);
   const headers = SHEET_SCHEMAS[sheetName] || [];
@@ -118,6 +118,26 @@ function insertRow(sheetName, dataObj) {
   });
   
   sheet.appendRow(newRow);
+  return true;
+}
+
+// Ultra-fast batch insertion of multiple row objects in a single spreadsheet write
+function insertRowsBatch(sheetName, dataObjArray) {
+  if (!dataObjArray || !Array.isArray(dataObjArray) || dataObjArray.length === 0) return true;
+  
+  const sheet = getOrCreateSheet(sheetName);
+  const headers = SHEET_SCHEMAS[sheetName] || [];
+  if (!headers || headers.length === 0) return false;
+  
+  const rows = dataObjArray.map(dataObj => {
+    return headers.map(header => {
+      const key = header.toString().trim();
+      return (dataObj.hasOwnProperty(key) && dataObj[key] !== undefined) ? dataObj[key] : "";
+    });
+  });
+  
+  const lastRow = sheet.getLastRow();
+  sheet.getRange(lastRow + 1, 1, rows.length, headers.length).setValues(rows);
   return true;
 }
 

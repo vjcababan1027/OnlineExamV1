@@ -1,7 +1,7 @@
 async function test() {
   const url = 'https://script.google.com/macros/s/AKfycbxkIG96iNm6vXF4cKkTQUpUmjetYCNukNpebmYYjUcZ2lGa3SmMbs385bazDXsCD2PZ7w/exec';
   
-  // 1. Login
+  // Login
   const loginRes = await fetch(url, {
     method: 'POST',
     headers: { 'Content-Type': 'text/plain;charset=utf-8' },
@@ -9,10 +9,10 @@ async function test() {
     redirect: 'follow'
   });
   const loginData = await loginRes.json();
-  console.log('Login result:', loginData);
   const token = loginData.token;
+  console.log('Login:', loginData.success ? 'OK' : 'FAILED');
 
-  // 2. Get Exams
+  // Get first exam
   const examsRes = await fetch(url, {
     method: 'POST',
     headers: { 'Content-Type': 'text/plain;charset=utf-8' },
@@ -20,66 +20,39 @@ async function test() {
     redirect: 'follow'
   });
   const examsData = await examsRes.json();
-  console.log('Exams result:', examsData);
+  const examId = examsData.exams?.[0]?.['Exam ID'];
+  console.log('Using exam:', examsData.exams?.[0]?.['Title'], '| ID:', examId);
 
-  if (!examsData.exams || examsData.exams.length === 0) {
-    console.log('No exams found.');
-    return;
-  }
-
-  const testExam = examsData.exams[0];
-  const examId = testExam['Exam ID'];
-  console.log('Testing with Exam ID:', examId, 'Title:', testExam['Title']);
-
-  // 3. Test Add Student
-  console.log('\n--- Testing addStudent ---');
-  const addRes = await fetch(url, {
+  // Build 54 students to simulate real usage
+  const students = Array.from({ length: 54 }, (_, i) => `TestBatch Student ${String(i + 1).padStart(2, '0')}`);
+  console.log(`\nSending ${students.length} students...`);
+  const start = Date.now();
+  
+  const importRes = await fetch(url, {
     method: 'POST',
     headers: { 'Content-Type': 'text/plain;charset=utf-8' },
     body: JSON.stringify({
-      action: 'addStudent',
+      action: 'importStudents',
       token,
       examId,
-      name: 'Test Student John',
-      section: 'Section A'
-    }),
-    redirect: 'follow'
-  });
-  const addData = await addRes.text();
-  console.log('addStudent response raw:', addData);
-
-  // 5. Test student verification (Student Login)
-  console.log('\n--- Testing studentVerify ---');
-  const verifyRes = await fetch(url, {
-    method: 'POST',
-    headers: { 'Content-Type': 'text/plain;charset=utf-8' },
-    body: JSON.stringify({
-      action: 'studentVerify',
-      examCode: testExam['Code'],
-      studentId: 'STU-47901'
-    }),
-    redirect: 'follow'
-  });
-  const verifyData = await verifyRes.json();
-  console.log('studentVerify result:', verifyData);
-
-  // 6. Test duplicate student ID add
-  console.log('\n--- Testing addStudent with duplicate ID ---');
-  const dupRes = await fetch(url, {
-    method: 'POST',
-    headers: { 'Content-Type': 'text/plain;charset=utf-8' },
-    body: JSON.stringify({
-      action: 'addStudent',
-      token,
-      examId,
-      name: 'Duplicate Student Test',
       section: 'Section A',
-      studentId: 'STU-47901'
+      students
     }),
     redirect: 'follow'
   });
-  const dupData = await dupRes.json();
-  console.log('addStudent duplicate response:', dupData);
+
+  const elapsed = Date.now() - start;
+  const importData = await importRes.text();
+  console.log(`\nResponse (${elapsed}ms):`);
+  try {
+    const parsed = JSON.parse(importData);
+    console.log('success:', parsed.success);
+    console.log('count:', parsed.count);
+    if (!parsed.success) console.log('error:', parsed.error);
+  } catch {
+    // If the server returned HTML (script error), print it
+    console.log(importData.substring(0, 800));
+  }
 }
 
 test().catch(console.error);

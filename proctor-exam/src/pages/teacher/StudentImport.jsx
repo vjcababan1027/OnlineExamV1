@@ -65,7 +65,7 @@ export default function StudentImport() {
         const currentExam = examsData.exams.find(e => String(e['Exam ID']).trim() === String(examId).trim());
         if (currentExam) {
           setExamMeta(currentExam);
-          const defaultSec = currentExam['Section'] || 'Section A';
+          const defaultSec = String(currentExam['Section'] || 'Section A').trim();
           setSingleSection(prev => prev || defaultSec);
           setBulkSection(prev => prev || defaultSec);
         }
@@ -135,7 +135,7 @@ export default function StudentImport() {
       return;
     }
 
-    const sectionToUse = singleSection.trim() || (examMeta && examMeta['Section']) || 'Section A';
+    const sectionToUse = (singleSection || '').trim() || String(examMeta?.['Section'] || 'Section A').trim();
 
     setAddingSingle(true);
     try {
@@ -175,7 +175,7 @@ export default function StudentImport() {
       return;
     }
 
-    const sectionToUse = bulkSection.trim() || (examMeta && examMeta['Section']) || 'Section A';
+    const sectionToUse = (bulkSection || '').trim() || String(examMeta?.['Section'] || 'Section A').trim();
     
     setLoadingBulk(true);
     try {
