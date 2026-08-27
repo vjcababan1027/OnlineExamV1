@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import { useAuth } from '../../context/AuthContext';
 import { callApi } from '../../api/api';
@@ -7,6 +7,8 @@ export default function StudentImport() {
   const navigate = useNavigate();
   const { examId } = useParams();
   const { teacherToken } = useAuth();
+  const fileInputRef = useRef(null);
+  const bannerRef = useRef(null);
   
   const [existingStudents, setExistingStudents] = useState([]);
   const [examMeta, setExamMeta] = useState(null);
@@ -39,6 +41,12 @@ export default function StudentImport() {
     fetchStudentsAndExam();
   }, [teacherToken, examId]);
 
+  const scrollToBanner = () => {
+    if (bannerRef.current) {
+      bannerRef.current.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+    }
+  };
+
   const fetchStudentsAndExam = async () => {
     setLoadingList(true);
     try {
@@ -69,13 +77,51 @@ export default function StudentImport() {
     }
   };
 
-  // Handle parsing on text change
+  // Smart parser on text change (handles newlines and CSV lines)
   useEffect(() => {
-    const lines = rawText.split('\n')
+    if (!rawText.trim()) {
+      setPreviewList([]);
+      return;
+    }
+    
+    // Split by newlines first
+    let lines = rawText.split(/\r?\n/)
       .map(line => line.trim())
       .filter(line => line.length > 0);
+
+    // Ignore typical CSV header row
+    if (lines.length > 0) {
+      const firstLineLower = lines[0].toLowerCase();
+      if (firstLineLower.includes('student') && (firstLineLower.includes('name') || firstLineLower.includes('id'))) {
+        lines = lines.slice(1);
+      }
+    }
+
     setPreviewList(lines);
   }, [rawText]);
+
+  // Handle File Upload (.csv, .txt)
+  const handleFileUpload = (e) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    const reader = new FileReader();
+    reader.onload = (event) => {
+      const content = event.target?.result || '';
+      setRawText(content);
+      setBulkMode(true);
+      setError('');
+      setSuccess(`Loaded file "${file.name}". Review names below and click "Import Students".`);
+      scrollToBanner();
+    };
+    reader.onerror = () => {
+      setError("Failed to read the selected file. Please try copy-pasting the content.");
+      scrollToBanner();
+    };
+    reader.readAsText(file);
+    // Reset file input so same file can be re-selected if needed
+    e.target.value = '';
+  };
 
   // Handle adding a single student
   const handleAddSingle = async (e) => {
@@ -85,6 +131,7 @@ export default function StudentImport() {
     
     if (!singleName.trim()) {
       setError("Please provide the Student's Full Name.");
+      scrollToBanner();
       return;
     }
 
@@ -104,7 +151,6 @@ export default function StudentImport() {
         setSuccess(`Student "${data.student.name}" added successfully with ID: ${data.student.studentId}`);
         setSingleName('');
         setSingleStudentId('');
-        // Refetch from server to guarantee list is up to date
         await fetchStudentsAndExam();
       } else {
         setError(`Failed to add student: ${data.error || 'Unknown error from server'}`);
@@ -113,6 +159,7 @@ export default function StudentImport() {
       setError(`Network error: ${err.message}`);
     } finally {
       setAddingSingle(false);
+      scrollToBanner();
     }
   };
 
@@ -122,12 +169,13 @@ export default function StudentImport() {
     setError('');
     setSuccess('');
     
-    const sectionToUse = bulkSection.trim() || (examMeta && examMeta['Section']) || 'Section A';
-    
     if (previewList.length === 0) {
-      setError("Roster paste block is empty. Add at least one name.");
+      setError("Please paste student names or upload a file before clicking Import.");
+      scrollToBanner();
       return;
     }
+
+    const sectionToUse = bulkSection.trim() || (examMeta && examMeta['Section']) || 'Section A';
     
     setLoadingBulk(true);
     try {
@@ -150,6 +198,7 @@ export default function StudentImport() {
       setError(err.message || "An error occurred writing student entries.");
     } finally {
       setLoadingBulk(false);
+      scrollToBanner();
     }
   };
 
@@ -174,6 +223,8 @@ export default function StudentImport() {
       }
     } catch (err) {
       setError(err.message || "Failed to delete student.");
+    } finally {
+      scrollToBanner();
     }
   };
 
@@ -201,42 +252,78 @@ export default function StudentImport() {
               {examMeta ? `${examMeta['Title']} (${examMeta['Code']})` : 'Manage registered students'}
             </p>
           </div>
-          <button 
-            className="btn btn-secondary"
-            onClick={() => setBulkMode(!bulkMode)}
-            style={{ fontSize: '0.85rem' }}
-          >
-            {bulkMode ? "Switch to Single Add" : "📋 Bulk Paste Roster"}
-          </button>
+          
+          {/* Mode Switcher Tabs */}
+          <div style={{ display: 'flex', background: 'rgba(255, 255, 255, 0.06)', borderRadius: 'var(--radius-sm)', padding: '0.25rem', gap: '0.25rem' }}>
+            <button 
+              type="button"
+              className="btn"
+              onClick={() => { setBulkMode(false); setError(''); }}
+              style={{
+                fontSize: '0.85rem',
+                padding: '0.4rem 0.8rem',
+                background: !bulkMode ? 'var(--primary)' : 'transparent',
+                color: !bulkMode ? '#fff' : 'var(--text-secondary)',
+                border: 'none'
+              }}
+            >
+              ➕ Single Add
+            </button>
+            <button 
+              type="button"
+              className="btn"
+              onClick={() => { setBulkMode(true); setError(''); }}
+              style={{
+                fontSize: '0.85rem',
+                padding: '0.4rem 0.8rem',
+                background: bulkMode ? 'var(--primary)' : 'transparent',
+                color: !bulkMode ? 'var(--text-secondary)' : '#fff',
+                border: 'none'
+              }}
+            >
+              📋 Bulk Paste / CSV
+            </button>
+          </div>
         </div>
 
-        {error && (
-          <div style={{
-            background: 'rgba(239, 68, 68, 0.1)',
-            border: '1px solid rgba(239, 68, 68, 0.3)',
-            borderRadius: 'var(--radius-sm)',
-            padding: '0.75rem 1rem',
-            color: 'var(--danger)',
-            fontSize: '0.85rem',
-            marginBottom: '1.5rem'
-          }}>
-            {error}
-          </div>
-        )}
-        
-        {success && (
-          <div style={{
-            background: 'rgba(16, 185, 129, 0.1)',
-            border: '1px solid rgba(16, 185, 129, 0.3)',
-            borderRadius: 'var(--radius-sm)',
-            padding: '0.75rem 1rem',
-            color: 'var(--success)',
-            fontSize: '0.85rem',
-            marginBottom: '1.5rem'
-          }}>
-            {success}
-          </div>
-        )}
+        {/* Feedback Messages */}
+        <div ref={bannerRef}>
+          {error && (
+            <div style={{
+              background: 'rgba(239, 68, 68, 0.12)',
+              border: '1px solid rgba(239, 68, 68, 0.35)',
+              borderRadius: 'var(--radius-sm)',
+              padding: '0.85rem 1.1rem',
+              color: 'var(--danger)',
+              fontSize: '0.9rem',
+              marginBottom: '1.5rem',
+              display: 'flex',
+              alignItems: 'center',
+              gap: '0.5rem'
+            }}>
+              <span>⚠️</span>
+              <span>{error}</span>
+            </div>
+          )}
+          
+          {success && (
+            <div style={{
+              background: 'rgba(16, 185, 129, 0.12)',
+              border: '1px solid rgba(16, 185, 129, 0.35)',
+              borderRadius: 'var(--radius-sm)',
+              padding: '0.85rem 1.1rem',
+              color: 'var(--success)',
+              fontSize: '0.9rem',
+              marginBottom: '1.5rem',
+              display: 'flex',
+              alignItems: 'center',
+              gap: '0.5rem'
+            }}>
+              <span>✅</span>
+              <span>{success}</span>
+            </div>
+          )}
+        </div>
 
         {/* Add Student Form */}
         {!bulkMode ? (
@@ -286,7 +373,7 @@ export default function StudentImport() {
                 type="submit" 
                 className="btn btn-primary"
                 style={{ height: '42px', minWidth: '120px', background: 'linear-gradient(135deg, var(--accent) 0%, #0d9488 100%)' }}
-                disabled={addingSingle || !singleName.trim()}
+                disabled={addingSingle}
               >
                 {addingSingle ? 'Adding...' : '+ Add Student'}
               </button>
@@ -300,12 +387,35 @@ export default function StudentImport() {
             padding: '1.25rem',
             marginBottom: '2rem'
           }}>
-            <h3 style={{ fontSize: '1.1rem', marginBottom: '0.5rem', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-              <span>📋</span> Bulk Import Roster Names
-            </h3>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '0.75rem', marginBottom: '0.75rem' }}>
+              <h3 style={{ fontSize: '1.1rem', margin: 0, display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                <span>📋</span> Bulk Import Roster Names
+              </h3>
+
+              {/* Upload CSV / TXT Button */}
+              <div>
+                <input 
+                  type="file" 
+                  ref={fileInputRef} 
+                  accept=".csv,.txt" 
+                  style={{ display: 'none' }} 
+                  onChange={handleFileUpload} 
+                />
+                <button
+                  type="button"
+                  className="btn btn-secondary"
+                  style={{ fontSize: '0.8rem', padding: '0.35rem 0.75rem' }}
+                  onClick={() => fileInputRef.current?.click()}
+                >
+                  📁 Upload .CSV / .TXT File
+                </button>
+              </div>
+            </div>
+
             <p style={{ fontSize: '0.85rem', color: 'var(--text-secondary)', marginBottom: '1rem', lineHeight: '1.5' }}>
-              Paste one student per line. Supported formats: <code>Full Name</code> (e.g. <em>Juan Dela Cruz</em> or <em>Dela Cruz, Juan</em>) or with ID like <code>2024-001, Juan Dela Cruz</code> or <code>ID | Name | Section</code>. IDs will be auto-generated if omitted.
+              Paste one student per line or upload a CSV. Supported formats: <code>Full Name</code> (e.g. <em>Juan Dela Cruz</em> or <em>Dela Cruz, Juan</em>) or with ID like <code>2024-001, Juan Dela Cruz</code> or <code>ID | Name | Section</code>. IDs are auto-generated if omitted.
             </p>
+
             <form onSubmit={handleBulkSubmit}>
               <div className="form-group">
                 <label className="form-label" style={{ fontSize: '0.85rem' }}>Default Section</label>
@@ -318,26 +428,30 @@ export default function StudentImport() {
                 />
               </div>
               <div className="form-group">
-                <label className="form-label" style={{ fontSize: '0.85rem' }}>Paste Names / Rows ({previewList.length} detected)</label>
+                <label className="form-label" style={{ fontSize: '0.85rem', display: 'flex', justifyContent: 'space-between' }}>
+                  <span>Paste Names / Rows</span>
+                  <span style={{ color: previewList.length > 0 ? 'var(--accent)' : 'var(--text-muted)' }}>
+                    {previewList.length} student{previewList.length === 1 ? '' : 's'} detected
+                  </span>
+                </label>
                 <textarea
                   className="form-control"
                   style={{ minHeight: '140px', fontFamily: 'monospace', fontSize: '0.85rem' }}
                   placeholder={"Juan Dela Cruz\nDela Cruz, Maria\n2024-001, Carlos Garcia\nSTU-555 | Sarah Connor | Section A"}
                   value={rawText}
                   onChange={(e) => setRawText(e.target.value)}
-                  required
                 ></textarea>
               </div>
 
               <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '0.75rem' }}>
-                <button type="button" className="btn btn-secondary" onClick={() => setBulkMode(false)}>Cancel</button>
+                <button type="button" className="btn btn-secondary" onClick={() => { setRawText(''); setBulkMode(false); }}>Cancel</button>
                 <button 
                   type="submit" 
                   className="btn btn-primary"
                   style={{ background: 'linear-gradient(135deg, var(--accent) 0%, #0d9488 100%)' }}
-                  disabled={loadingBulk || previewList.length === 0}
+                  disabled={loadingBulk}
                 >
-                  {loadingBulk ? "Importing..." : `Import ${previewList.length} Students`}
+                  {loadingBulk ? "Importing Roster..." : (previewList.length > 0 ? `Import ${previewList.length} Students` : "Import Students")}
                 </button>
               </div>
             </form>

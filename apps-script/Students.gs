@@ -52,9 +52,19 @@ function handleImportStudents(body) {
   }
   
   try {
-    const { examId, section, students } = body;
-    if (!examId || !students || !Array.isArray(students)) {
-      return { success: false, error: "Missing examId or student list" };
+    const { examId, section } = body;
+    let students = body.students;
+    
+    if (!examId) {
+      return { success: false, error: "Missing examId" };
+    }
+    
+    if (typeof students === 'string') {
+      students = students.split(/\r?\n/).map(s => s.trim()).filter(s => s.length > 0);
+    }
+    
+    if (!students || !Array.isArray(students) || students.length === 0) {
+      return { success: false, error: "No student records provided to import." };
     }
     
     // Look up exam default section if section was blank
